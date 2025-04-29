@@ -213,6 +213,8 @@ async function uploadLargeFile(formData, progressCallback) {
     const file = formData.get('file');
     const title = formData.get('title');
     const description = formData.get('description');
+    const uploader = formData.get('uploader');
+    const players = formData.get('players'); // Pass along player data if available
     
     if (!file) {
         throw new Error('No file found in form data');
@@ -226,20 +228,32 @@ async function uploadLargeFile(formData, progressCallback) {
     
     console.log(`Preparing chunked upload: ${totalChunks} chunks of ${chunkSize} bytes`);
     
-    // Start metadata upload first to get the file ID
-    const metadataForm = new FormData();
-    metadataForm.append('title', title);
-    metadataForm.append('description', description);
-    metadataForm.append('s3', 'true');
-    metadataForm.append('chunked', 'true');
-    metadataForm.append('totalChunks', totalChunks.toString());
-    metadataForm.append('fileSize', file.size.toString());
-    metadataForm.append('filename', file.name);
+    // Generate a unique file ID for this upload
+    const fileId = `upload_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
     
     try {
-        // We would normally send this to a metadata/initialization endpoint that returns a fileId
-        // For now, we'll just generate a unique ID for demonstration purposes
-        const fileId = `upload_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+        // First, send initialization request to let the server know a chunked upload is starting
+        const initForm = new FormData();
+        initForm.append('action', 'init_chunked_upload');
+        initForm.append('title', title);
+        initForm.append('description', description);
+        initForm.append('uploader', uploader);
+        if (players) initForm.append('players', players);
+        initForm.append('filename', file.name);
+        initForm.append('fileSize', file.size.toString());
+        initForm.append('totalChunks', totalChunks.toString());
+        initForm.append('fileId', fileId);
+        initForm.append('s3', 'true');
+        
+        // Send initialization request
+        const initResponse = await fetch(`${BASE_URL}/upload/init`, {
+            method: 'POST',
+            body: initForm
+        });
+        
+        if (!initResponse.ok) {
+            throw new Error(`Failed to initialize chunked upload: ${initResponse.status}`);
+        }
         
         // Process each chunk
         for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
@@ -249,20 +263,19 @@ async function uploadLargeFile(formData, progressCallback) {
             
             // Create a form for this chunk
             const chunkForm = new FormData();
-            chunkForm.append('file', chunk, `${file.name}.part${chunkIndex}`);
-            chunkForm.append('s3', 'true');
+            chunkForm.append('file', chunk, `chunk_${fileId}_${chunkIndex}_of_${totalChunks}`);
             chunkForm.append('fileId', fileId);
             chunkForm.append('chunkIndex', chunkIndex.toString());
             chunkForm.append('totalChunks', totalChunks.toString());
+            chunkForm.append('originalFilename', file.name);
+            chunkForm.append('s3', 'true');
             
             // Upload this chunk
             try {
-                // In a real implementation, we'd point this to a chunk upload endpoint
-                // For now, we're using the standard upload endpoint
                 const xhr = new XMLHttpRequest();
                 
                 await new Promise((resolveChunk, rejectChunk) => {
-                    xhr.open('POST', `${BASE_URL}/upload`, true);
+                    xhr.open('POST', `${BASE_URL}/upload/chunk`, true);
                     
                     xhr.upload.onprogress = (event) => {
                         if (event.lengthComputable) {
@@ -277,7 +290,7 @@ async function uploadLargeFile(formData, progressCallback) {
                     };
                     
                     xhr.onload = function() {
-                        if (xhr.status === 201) {
+                        if (xhr.status === 200 || xhr.status === 201) {
                             uploadedChunks++;
                             totalUploaded += chunk.size;
                             
@@ -297,32 +310,39 @@ async function uploadLargeFile(formData, progressCallback) {
                 
             } catch (chunkError) {
                 console.error(`Error uploading chunk ${chunkIndex}:`, chunkError);
-                
-                // Retry logic could be added here
                 throw new Error(`Failed to upload chunk ${chunkIndex}: ${chunkError.message}`);
             }
         }
         
-        // When all chunks are uploaded, inform the server to combine them
-        // This would typically be a separate API call to a finalization endpoint
+        // All chunks uploaded, now tell the server to finalize (combine chunks)
         console.log('All chunks uploaded successfully, finalizing...');
+        
+        const finalizeForm = new FormData();
+        finalizeForm.append('action', 'finalize_chunked_upload');
+        finalizeForm.append('fileId', fileId);
+        finalizeForm.append('filename', file.name);
+        finalizeForm.append('totalChunks', totalChunks.toString());
+        finalizeForm.append('title', title);
+        finalizeForm.append('description', description);
+        finalizeForm.append('uploader', uploader);
+        if (players) finalizeForm.append('players', players);
+        
+        const finalizeResponse = await fetch(`${BASE_URL}/upload/finalize`, {
+            method: 'POST',
+            body: finalizeForm
+        });
+        
+        if (!finalizeResponse.ok) {
+            throw new Error(`Failed to finalize upload: ${finalizeResponse.status}`);
+        }
+        
+        const responseData = await finalizeResponse.json();
         
         if (progressCallback) {
             progressCallback(100);
         }
         
-        // Simulate the final response
-        // In a real application, you would make a call to finalize the upload
-        return {
-            success: true,
-            metadata: {
-                id: fileId,
-                title,
-                description,
-                s3_url: `https://example.com/${fileId}/${file.name}`,
-                // Other metadata would be included from the server response
-            }
-        };
+        return responseData;
         
     } catch (error) {
         console.error('Error during chunked upload:', error);
