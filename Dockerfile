@@ -1,14 +1,25 @@
 FROM nginx:alpine
 
-# Copy nginx configuration
+# Copy nginx configuration (using a command that ensures it takes precedence)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Remove the default nginx configuration to avoid conflicts
+RUN rm -f /etc/nginx/conf.d/default.conf.default
+
+# Set the correct working directory
+WORKDIR /usr/share/nginx/html
+
 # Copy static files to nginx html directory
-COPY index.html video.html /usr/share/nginx/html/
-COPY app.js video.js styles.css /usr/share/nginx/html/
+COPY index.html video.html ./
+COPY app.js video.js styles.css ./
 
 # Create assets directory if there are any assets
-RUN mkdir -p /usr/share/nginx/html/assets
+RUN mkdir -p ./assets
+# Copy any assets that might exist (won't fail if no matches)
+COPY assets/* ./assets/ 2>/dev/null || :
+
+# Debug: List files to verify they're in the right place
+RUN ls -la /usr/share/nginx/html/
 
 # Expose port 8080
 EXPOSE 8080
