@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Replay Hub - Share your videos</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="logo-container">
+            <a href="index.html" class="logo">
+                <i class="fas fa-play-circle"></i>
+                <span>Replay</span>Hub
+            </a>
+        </div>
+        
+        <div class="search-container">
+            <input type="text" id="search-bar" placeholder="Search videos...">
+            <button id="search-button">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+        
+        <div class="user-actions">
+            <button id="upload-button" class="upload-btn">
+                <i class="fas fa-upload"></i>
+                Upload
+            </button>
+        </div>
+    </header>
+    
+    <div class="main-content">
+        <aside class="sidebar">
+            <nav>
+                <a href="index.html" class="menu-item active">
+                    <i class="fas fa-home"></i>
+                    Home
+                </a>
+                <a href="#" class="menu-item">
+                    <i class="fas fa-fire"></i>
+                    Trending
+                </a>
+                <a href="#" class="menu-item">
+                    <i class="fas fa-clock"></i>
+                    Watch Later
+                </a>
+                <a href="#" class="menu-item">
+                    <i class="fas fa-history"></i>
+                    History
+                </a>
+                <a href="#" class="menu-item">
+                    <i class="fas fa-thumbs-up"></i>
+                    Liked Videos
+                </a>
+            </nav>
+        </aside>
+        
+        <main class="content">
+            <h2 class="section-title">Recommended Videos</h2>
+            <div id="video-grid" class="video-grid">
+                <!-- Video cards will be dynamically inserted here -->
+                <div class="loading">Loading videos...</div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Upload Modal -->
+    <div id="modal-overlay" class="modal-overlay">
+        <div id="upload-modal" class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Upload Video</h3>
+                <button id="close-modal" class="close-modal">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="upload-tabs">
+                    <div id="single-upload-tab" class="upload-tab active">Single Upload</div>
+                    <div id="bulk-upload-tab" class="upload-tab">Bulk Upload</div>
+                </div>
+                
+                <div id="single-upload" class="upload-content active">
+                    <form id="upload-form">
+                        <div id="single-dropzone" class="dropzone">
+                            <div class="dropzone-icon">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </div>
+                            <p class="dropzone-text">Drag and drop a video here or click to select</p>
+                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Max 10GB.</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="video-uploader">Username</label>
+                            <input type="text" id="video-uploader" class="form-control" placeholder="Your username (required)">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="video-title">Title</label>
+                            <input type="text" id="video-title" class="form-control" placeholder="Video title (required)">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="video-description">Description</label>
+                            <textarea id="video-description" class="form-control" placeholder="Video description (required)"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="video-players">Players in clip</label>
+                            <input type="text" id="video-players" class="form-control" placeholder="Comma-separated list of players (optional)">
+                            <small class="form-text text-muted">Enter player names separated by commas (e.g. "Player1, Player2, Player3")</small>
+                        </div>
+                        
+                        <div id="progress-container" class="progress-container" style="display: none;">
+                            <div class="progress-bar">
+                                <div id="upload-progress" class="progress" style="width: 0%;"></div>
+                            </div>
+                            <p id="upload-status">Preparing to upload...</p>
+                        </div>
+                        
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-primary">Upload</button>
+                        </div>
+                    </form>
+                </div>
+                
+                <div id="bulk-upload" class="upload-content">
+                    <form id="bulk-upload-form">
+                        <div id="bulk-dropzone" class="dropzone">
+                            <div class="dropzone-icon">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </div>
+                            <p class="dropzone-text">Drag and drop multiple videos here or click to select</p>
+                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Max 10GB per file.</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="bulk-video-uploader">Username</label>
+                            <input type="text" id="bulk-video-uploader" class="form-control" placeholder="Your username (required)">
+                        </div>
+                        
+                        <div id="upload-list" class="upload-list" style="display: none;">
+                            <!-- Upload items will appear here -->
+                        </div>
+                        
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-primary">Start Bulk Upload</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
