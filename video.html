@@ -203,7 +203,16 @@
         </div>
     </div>
 
+    <!-- Load app.js first for global variables -->
     <script src="app.js"></script>
+    
+    <!-- Load the modular JavaScript files in the correct order -->
+    <script src="js/utils.js"></script>
+    <script src="js/videoPlayer.js"></script>
+    <script src="js/videoMetadata.js"></script>
+    <script src="js/videoComments.js"></script>
+    
+    <!-- Load the main video.js file last -->
     <script src="video.js"></script>
 </body>
 </html>

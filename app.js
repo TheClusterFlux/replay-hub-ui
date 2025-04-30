@@ -425,7 +425,29 @@ function createVideoCard(video) {
     // Add click event to navigate to the video page
     card.addEventListener('click', () => {
         if (validS3Url) {
-            window.location.href = `video.html?s3_url=${encodeURIComponent(video.s3_url)}&id=${video.id || ''}`;
+            // Extract a more useful ID from the S3 URL if possible
+            let idToUse = video.id || '';
+            
+            // If we don't have a good ID but do have an S3 URL, try to extract a useful ID from it
+            if ((!idToUse || idToUse === '') && video.s3_url) {
+                try {
+                    const s3UrlParts = video.s3_url.split('/');
+                    const filename = s3UrlParts[s3UrlParts.length - 1];
+                    // Try to extract UUID pattern from the filename (before file extension)
+                    const filenameWithoutExt = filename.split('.')[0];
+                    // Look for a UUID pattern - with or without dashes
+                    const uuidMatch = filenameWithoutExt.match(/([a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12})|([a-f0-9]{32})/i);
+                    
+                    if (uuidMatch) {
+                        idToUse = uuidMatch[0];
+                        console.log(`Using extracted UUID ${idToUse} from S3 URL as video ID`);
+                    }
+                } catch (e) {
+                    console.warn('Error extracting ID from S3 URL:', e);
+                }
+            }
+            
+            window.location.href = `video.html?s3_url=${encodeURIComponent(video.s3_url)}&id=${encodeURIComponent(idToUse)}`;
         } else {
             console.error('Cannot navigate to video: Missing or invalid s3_url');
             alert('Sorry, this video is currently unavailable.');
