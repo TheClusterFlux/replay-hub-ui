@@ -13,8 +13,9 @@ WORKDIR /usr/share/nginx/html
 COPY index.html video.html ./
 COPY app.js video.js styles.css ./
 
-# Debug: List files to verify they're in the right place
-RUN ls -la /usr/share/nginx/html/
+# Copy the js directory with component files
+COPY js/ ./js/
+
 
 # Expose port 8080
 EXPOSE 8080
