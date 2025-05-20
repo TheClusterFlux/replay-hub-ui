@@ -19,9 +19,11 @@ window.replayHub = window.replayHub || {};
   /**
    * Initialize comments functionality for a video
    * @param {string} videoId - The ID of the video
-   */
-  async function initComments(videoId) {
+   */  async function initComments(videoId) {
     try {
+      // Update the avatar based on the current user
+      updateCommentAvatar();
+      
       // Set up the comment form
       setupCommentForm(videoId);
       
@@ -29,6 +31,26 @@ window.replayHub = window.replayHub || {};
       await loadComments(videoId);
     } catch (error) {
       console.error('Error initializing comments:', error);
+    }
+  }
+  
+  /**
+   * Update the comment avatar with the current user's first initial
+   */
+  function updateCommentAvatar() {
+    const commentAvatar = document.getElementById('comment-avatar');
+    if (!commentAvatar) return;
+    
+    const currentUser = window.currentUser || { name: 'Guest User' };
+    const initial = currentUser.name.charAt(0).toUpperCase();
+    
+    commentAvatar.textContent = initial;
+    
+    // Add a special class if the user is logged in
+    if (currentUser.isLoggedIn) {
+      commentAvatar.classList.add('logged-in');
+    } else {
+      commentAvatar.classList.remove('logged-in');
     }
   }
 
@@ -366,16 +388,25 @@ window.replayHub = window.replayHub || {};
    * @param {string} videoId - The ID of the video
    * @param {string} text - The comment text
    * @returns {Promise<Object>} - The created comment
-   */
-  async function addComment(videoId, text) {
+   */  async function addComment(videoId, text) {
     try {
+      // Access global currentUser object from window
+      const currentUser = window.currentUser || { id: 'guest-user', name: 'Guest User' };
+      
+      // Check if user is logged in
+      if (!currentUser.isLoggedIn) {
+        alert('Please log in to add comments.');
+        if (window.login) window.login();
+        throw new Error('User not logged in');
+      }
+      
       const response = await fetch(`${BASE_URL}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoId,
-          userId: window.currentUser?.id || 'guest-user',
-          username: window.currentUser?.name || 'Guest User',
+          userId: currentUser.id,
+          username: currentUser.name,
           text,
           timestamp: new Date().toISOString()
         })
@@ -398,16 +429,25 @@ window.replayHub = window.replayHub || {};
    * @param {string} videoId - The ID of the video
    * @param {string} text - The reply text
    * @returns {Promise<Object>} - The created reply
-   */
-  async function addReply(commentId, videoId, text) {
+   */  async function addReply(commentId, videoId, text) {
     try {
+      // Access global currentUser object from window
+      const currentUser = window.currentUser || { id: 'guest-user', name: 'Guest User' };
+      
+      // Check if user is logged in
+      if (!currentUser.isLoggedIn) {
+        alert('Please log in to reply to comments.');
+        if (window.login) window.login();
+        throw new Error('User not logged in');
+      }
+      
       const response = await fetch(`${BASE_URL}/comments/${commentId}/reply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoId,
-          userId: window.currentUser?.id || 'guest-user',
-          username: window.currentUser?.name || 'Guest User',
+          userId: currentUser.id,
+          username: currentUser.name,
           text,
           timestamp: new Date().toISOString()
         })
@@ -430,15 +470,24 @@ window.replayHub = window.replayHub || {};
    * @param {string} videoId - The video ID
    * @param {string} reactionType - The reaction type ('like' or 'dislike')
    * @returns {Promise<Object>} - The updated reaction counts
-   */
-  async function handleCommentReaction(commentId, videoId, reactionType) {
+   */  async function handleCommentReaction(commentId, videoId, reactionType) {
     try {
+      // Access global currentUser object from window
+      const currentUser = window.currentUser || { id: 'guest-user', name: 'Guest User' };
+      
+      // Check if user is logged in
+      if (!currentUser.isLoggedIn) {
+        alert('Please log in to like or dislike comments.');
+        if (window.login) window.login();
+        throw new Error('User not logged in');
+      }
+      
       const response = await fetch(`${BASE_URL}/comments/${commentId}/reactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoId,
-          userId: window.currentUser?.id || 'guest-user',
+          userId: currentUser.id,
           type: reactionType,
           timestamp: new Date().toISOString()
         })
@@ -466,15 +515,24 @@ window.replayHub = window.replayHub || {};
    * @param {string} videoId - The video ID
    * @param {string} reactionType - The reaction type ('like' or 'dislike')
    * @returns {Promise<Object>} - The updated reaction counts
-   */
-  async function handleReplyReaction(replyId, videoId, reactionType) {
+   */  async function handleReplyReaction(replyId, videoId, reactionType) {
     try {
+      // Access global currentUser object from window
+      const currentUser = window.currentUser || { id: 'guest-user', name: 'Guest User' };
+      
+      // Check if user is logged in
+      if (!currentUser.isLoggedIn) {
+        alert('Please log in to like or dislike replies.');
+        if (window.login) window.login();
+        throw new Error('User not logged in');
+      }
+      
       const response = await fetch(`${BASE_URL}/comments/${replyId}/reactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoId,
-          userId: window.currentUser?.id || 'guest-user',
+          userId: currentUser.id,
           type: reactionType,
           timestamp: new Date().toISOString()
         })
@@ -541,15 +599,24 @@ window.replayHub = window.replayHub || {};
    * @param {string} videoId - The video ID
    * @param {string} reactionType - The reaction type ('like' or 'dislike')
    * @returns {Promise<Object>} - The updated reaction counts
-   */
-  async function handleVideoReaction(videoId, reactionType) {
+   */  async function handleVideoReaction(videoId, reactionType) {
     try {
+      // Access global currentUser object from window
+      const currentUser = window.currentUser || { id: 'guest-user', name: 'Guest User' };
+      
+      // Check if user is logged in
+      if (!currentUser.isLoggedIn) {
+        alert('Please log in to like or dislike videos.');
+        if (window.login) window.login();
+        throw new Error('User not logged in');
+      }
+      
       const response = await fetch(`${BASE_URL}/reactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoId,
-          userId: window.currentUser?.id || 'guest-user',
+          userId: currentUser.id,
           type: reactionType,
           timestamp: new Date().toISOString()
         })

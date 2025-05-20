@@ -144,5 +144,10 @@ window.replayHub.utils = {
   showError
 };
 
+// If we have a currentUser already set from a login process, use it
+if (window.currentUser && !window.replayHub.currentUser) {
+  window.replayHub.currentUser = window.currentUser;
+}
+
 // Signal that this module is ready
 console.log('Utils module initialized');

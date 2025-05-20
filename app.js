@@ -1,13 +1,260 @@
+import Keycloak from './lib/keycloak.js';
+
 // Constants
 const ISLOCAL = false;
-const BASE_URL = ISLOCAL ? 'http://localhost:8080' : 'https://replay-hub.theclusterflux.com';
+export const BASE_URL = ISLOCAL ? 'http://localhost:8080' : 'https://replay-hub.theclusterflux.com';
+
+// Make BASE_URL available globally for non-module scripts
+window.BASE_URL = BASE_URL;
+
+// Initialize Keycloak
+const keycloak = new Keycloak({
+    url: "https://keycloak.theclusterflux.com", 
+    realm: "ReplayHub",
+    clientId: "replay-hub"
+});
+
+// Initialize Keycloak with an IIFE
+(async function initKeycloak() {
+    try {
+        // Add initialization options with simpler configuration
+        const initOptions = {
+            pkceMethod: 'S256', // Use PKCE for public clients (recommended)
+            checkLoginIframe: false, // Disable iframe check which can cause issues
+            enableLogging: true, // Enable logging for debugging
+            responseMode: 'fragment', // Use fragment response mode for better compatibility
+            flow: 'standard', // Use standard authorization code flow
+            onLoad: 'check-sso', // Check for existing sessions without login prompt
+            promiseType: 'native' // Use native promises
+        };
+        
+        const authenticated = await keycloak.init(initOptions);
+        if (authenticated) {
+            console.log('User is authenticated');
+            // Update UI for logged in state
+            updateLoginStatus(true);
+        } else {
+            console.log('User is not authenticated');
+            // Update UI for logged out state
+            updateLoginStatus(false);
+        }
+    
+    } catch (error) {
+        console.error('Failed to initialize adapter:', error);
+        updateLoginStatus(false);
+    }
+})();
+
+
+// Make login, register, and logout functions globally accessible
+window.login = function() {
+    console.log('Login function called');
+    if (keycloak) {
+        keycloak.login().catch(error => {
+            console.error('Login error:', error);
+        });
+    } else {
+        console.error('Keycloak not initialized');
+    }
+};
+
+window.register = function() {
+    console.log('Register function called');
+    if (keycloak) {
+        try {
+            const options = {
+                redirectUri: window.location.href,
+                scope: 'openid',
+                prompt: 'login',
+                action: 'register'
+            };
+            
+            console.log('Initiating registration with standard login flow and action=register');
+            
+            // Use login() with action=register instead of createRegisterUrl()
+            keycloak.login(options).catch(error => {
+                console.error('Registration error:', error);
+            });
+        } catch (error) {
+            console.error('Registration function error:', error);
+        }
+    } else {
+        console.error('Keycloak not initialized');
+    }
+};
+
+window.logout = function() {
+    console.log('Logout function called');
+    if (keycloak && keycloak.authenticated) {
+        keycloak.logout().catch(error => {
+            console.error('Logout error:', error);
+        });
+    } else {
+        console.log('Not authenticated, nothing to do');
+    }
+};
+
+// Use the global functions for UI event handlers
+function login() {
+    window.login();
+}
+
+function register() {
+    window.register();
+}
+
+function logout() {
+    window.logout();
+}
+
+
+function updateLoginStatus(isLoggedIn) {
+    const loginButton = document.getElementById('login-button');
+    const registerButton = document.getElementById('register-button');
+    const uploadButton = document.getElementById('upload-button');
+    
+    // Update current user information
+    if (isLoggedIn && keycloak.tokenParsed) {
+        currentUser.id = keycloak.subject || keycloak.tokenParsed.sub;
+        currentUser.name = keycloak.tokenParsed.preferred_username || keycloak.tokenParsed.name || 'User';
+        currentUser.avatar = keycloak.tokenParsed.picture || null;
+        currentUser.isLoggedIn = true;
+        console.log('User logged in:', currentUser.name);
+    } else {
+        currentUser.id = 'guest-user';
+        currentUser.name = 'Guest User';
+        currentUser.avatar = null;
+        currentUser.isLoggedIn = false;
+    }
+    
+    // Update UI with login status
+    if (loginButton) {
+        if (isLoggedIn) {
+            // Create profile button if it doesn't exist
+            let profileButton = document.getElementById('profile-button');
+            if (!profileButton) {
+                const userActions = document.querySelector('.user-actions');
+                if (userActions) {
+                    profileButton = document.createElement('div');
+                    profileButton.id = 'profile-button';
+                    profileButton.className = 'profile-button';
+                    
+                    // Create dropdown menu
+                    const dropdown = document.createElement('div');
+                    dropdown.className = 'profile-dropdown';
+                    
+                    // Add profile avatar and name
+                    const avatar = document.createElement('div');
+                    avatar.className = 'avatar';
+                    avatar.textContent = currentUser.name.charAt(0).toUpperCase();
+                    
+                    const username = document.createElement('span');
+                    username.className = 'username';
+                    username.textContent = currentUser.name;
+                    
+                    // Add dropdown toggle
+                    const dropdownToggle = document.createElement('div');
+                    dropdownToggle.className = 'dropdown-toggle';
+                    dropdownToggle.appendChild(avatar);
+                    dropdownToggle.appendChild(username);
+                    
+                    // Add dropdown menu
+                    const dropdownMenu = document.createElement('div');
+                    dropdownMenu.className = 'dropdown-menu';
+                    
+                    // Add logout option
+                    const logoutOption = document.createElement('a');
+                    logoutOption.href = '#';
+                    logoutOption.className = 'dropdown-item';
+                    logoutOption.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout';
+                    logoutOption.onclick = logout;
+                    
+                    // // Add profile option for future use
+                    // const profileOption = document.createElement('a');
+                    // profileOption.href = '#';
+                    // profileOption.className = 'dropdown-item';
+                    // profileOption.innerHTML = '<i class="fas fa-user"></i> Profile';
+                    
+                    // // Add settings option for future use
+                    // const settingsOption = document.createElement('a');
+                    // settingsOption.href = '#';
+                    // settingsOption.className = 'dropdown-item';
+                    // settingsOption.innerHTML = '<i class="fas fa-cog"></i> Settings';
+                    
+                    // Assemble dropdown menu
+                    // dropdownMenu.appendChild(profileOption);
+                    // dropdownMenu.appendChild(settingsOption);
+                    dropdownMenu.appendChild(document.createElement('hr'));
+                    dropdownMenu.appendChild(logoutOption);
+                    
+                    // Assemble dropdown
+                    dropdown.appendChild(dropdownToggle);
+                    dropdown.appendChild(dropdownMenu);
+                    profileButton.appendChild(dropdown);
+                    
+                    // Add click handler to toggle dropdown
+                    dropdownToggle.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        dropdownMenu.classList.toggle('show');
+                    });
+                    
+                    // Close the dropdown when clicking outside
+                    document.addEventListener('click', (e) => {
+                        if (!profileButton.contains(e.target)) {
+                            dropdownMenu.classList.remove('show');
+                        }
+                    });
+                    
+                    // Hide login and register buttons
+                    loginButton.style.display = 'none';
+                    if (registerButton) {
+                        registerButton.style.display = 'none';
+                    }
+                    
+                    // Add the profile button to the user actions
+                    userActions.appendChild(profileButton);
+                }
+            }
+        } else {
+            // Remove profile button if it exists
+            const profileButton = document.getElementById('profile-button');
+            if (profileButton) {
+                profileButton.remove();
+            }
+            
+            // Show login and register buttons
+            loginButton.style.display = 'inline-block';
+            loginButton.textContent = 'Login';
+            loginButton.onclick = login;
+            
+            if (registerButton) {
+                registerButton.style.display = 'inline-block';
+            }
+        }
+    }
+    
+    // Set register button action
+    if (registerButton && !isLoggedIn) {
+        registerButton.onclick = register;
+    }
+    
+    // Update upload button - only show if logged in
+    if (uploadButton) {
+        if (isLoggedIn) {
+            uploadButton.style.display = 'inline-block';
+        } else {
+            uploadButton.style.display = 'inline-block'; // Keep showing it but we'll prompt for login when clicked
+        }
+    }
+}
 
 // Global state
 let allVideos = []; 
 let currentUser = {
     id: 'guest-user',
     name: 'Guest User',
-    avatar: null
+    avatar: null,
+    isLoggedIn: false
 };
 
 // Utility functions
@@ -611,15 +858,37 @@ function initUploadModal() {
     
     // Array of files for bulk upload
     let selectedBulkFiles = [];
-    
-    // Open modal when upload button is clicked
+      // Open modal when upload button is clicked
     if (uploadButton) {
         uploadButton.addEventListener('click', () => {
             console.log('Upload button clicked');
+            
+            // Check if user is logged in
+            if (!currentUser.isLoggedIn) {
+                console.log('User not logged in, prompting for login');
+                alert('Please log in to upload videos.');
+                login();
+                return;
+            }
+            
             if (modalOverlay) {
                 // Use the active class instead of display style
                 modalOverlay.classList.add('active');
                 console.log('Modal displayed');
+                
+                // Pre-fill uploader with current username
+                const uploaderInput = document.getElementById('video-uploader');
+                const bulkUploaderInput = document.getElementById('bulk-video-uploader');
+                
+                if (uploaderInput) {
+                    uploaderInput.value = currentUser.name;
+                    uploaderInput.disabled = true; // Disable editing
+                }
+                
+                if (bulkUploaderInput) {
+                    bulkUploaderInput.value = currentUser.name;
+                    bulkUploaderInput.disabled = true; // Disable editing
+                }
             }
         });
     }
@@ -859,23 +1128,18 @@ function initUploadModal() {
                 return;
             }
             
-            if (!titleInput.value.trim()) {
+            if (!titleInput.value) {
                 alert('Please enter a title for the video');
                 titleInput.focus();
                 return;
             }
             
-            if (!descriptionInput.value.trim()) {
+            if (!descriptionInput.value) {
                 alert('Please enter a description for the video');
                 descriptionInput.focus();
                 return;
             }
-            
-            if (!uploaderInput.value.trim()) {
-                alert('Please enter a username for the video');
-                uploaderInput.focus();
-                return;
-            }
+              // No need to check for username, as it's pre-filled and disabled for logged-in users
             
             // Show progress bar
             if (progressContainer) progressContainer.style.display = 'block';
@@ -883,13 +1147,13 @@ function initUploadModal() {
             
             const formData = new FormData();
             formData.append('file', selectedFile);
-            formData.append('title', titleInput.value.trim());
-            formData.append('description', descriptionInput.value.trim());
-            formData.append('uploader', uploaderInput.value.trim());
+            formData.append('title', titleInput.value);
+            formData.append('description', descriptionInput.value);
+            formData.append('uploader', uploaderInput.value);
             formData.append('s3', 'true'); // Always upload to S3
             
             // Add players if available
-            if (playersInput && playersInput.value.trim()) {
+            if (playersInput && playersInput.value) {
                 const players = playersInput.value.split(',').map(player => player.trim());
                 formData.append('players', JSON.stringify(players));
             }
@@ -946,12 +1210,7 @@ function initUploadModal() {
                 alert('Please select at least one video file to upload');
                 return;
             }
-            
-            if (!uploaderInput || !uploaderInput.value.trim()) {
-                alert('Please enter an uploader name for the videos');
-                uploaderInput.focus();
-                return;
-            }
+              // No need to check for username, as it's pre-filled and disabled for logged-in users
             
             // Show progress message
             if (bulkDropzone) {
@@ -1079,14 +1338,37 @@ function initUploadModal() {
         if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
         return (bytes / 1073741824).toFixed(1) + ' GB';
     }
-    
-    // Helper function to reset the form after upload
+      // Helper function to reset the form after upload
     function resetUploadForm() {
         selectedFile = null;
         selectedBulkFiles = [];
         
         if (uploadForm) uploadForm.reset();
         if (bulkUploadForm) bulkUploadForm.reset();
+        
+        // Re-fill username fields for logged-in users
+        const uploaderInput = document.getElementById('video-uploader');
+        const bulkUploaderInput = document.getElementById('bulk-video-uploader');
+        
+        if (currentUser.isLoggedIn) {
+            if (uploaderInput) {
+                uploaderInput.value = currentUser.name;
+                uploaderInput.disabled = true;
+            }
+            
+            if (bulkUploaderInput) {
+                bulkUploaderInput.value = currentUser.name;
+                bulkUploaderInput.disabled = true;
+            }
+        } else {
+            if (uploaderInput) {
+                uploaderInput.disabled = false;
+            }
+            
+            if (bulkUploaderInput) {
+                bulkUploaderInput.disabled = false;
+            }
+        }
         
         if (singleDropzone) {
             singleDropzone.innerHTML = `

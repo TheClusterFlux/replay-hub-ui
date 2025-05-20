@@ -33,9 +33,13 @@
             <button id="search-button">
                 <i class="fas fa-search"></i>
             </button>
-        </div>
-        
-        <div class="user-actions">
+        </div>        <div class="user-actions">
+            <button id="login-button" class="login-btn">
+                Login
+            </button>
+            <button id="register-button" class="register-btn">
+                Register
+            </button>
             <button id="upload-button" class="upload-btn">
                 <i class="fas fa-upload"></i>
                 Upload
@@ -56,12 +60,12 @@
                     To view this video please enable JavaScript, and consider upgrading to a
                     web browser that supports HTML5 video
                 </p>
-            </video>
-            <iframe
+            </video>            <iframe
                 id="video-embed"
                 style="display: none;"
                 class="video-player"
-                frameborder="0"
+                title="Video Player"
+                border="0"
                 allowfullscreen>
             </iframe>
         </div>
@@ -112,9 +116,8 @@
                     <span>Sort by</span>
                 </div>
             </div>
-            
-            <div class="new-comment">
-                <div class="user-avatar">G</div>
+              <div class="new-comment">
+                <div id="comment-avatar" class="user-avatar">G</div>
                 <div class="comment-input-container">
                     <form id="comment-form">
                         <input type="text" id="comment-input" class="comment-input" placeholder="Add a comment...">
@@ -146,25 +149,35 @@
                     <div id="single-upload-tab" class="upload-tab active">Single Upload</div>
                     <div id="bulk-upload-tab" class="upload-tab">Bulk Upload</div>
                 </div>
-                
-                <div id="single-upload" class="upload-content active">
+                  <div id="single-upload" class="upload-content active">
                     <form id="upload-form">
                         <div id="single-dropzone" class="dropzone">
                             <div class="dropzone-icon">
                                 <i class="fas fa-cloud-upload-alt"></i>
                             </div>
                             <p class="dropzone-text">Drag and drop a video here or click to select</p>
-                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Max 2GB.</p>
+                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Max 10GB.</p>
                         </div>
                         
                         <div class="form-group">
-                            <label for="video-title-input">Title</label>
-                            <input type="text" id="video-title-input" class="form-control" placeholder="Video title (required)">
+                            <label for="video-uploader">Username</label>
+                            <input type="text" id="video-uploader" class="form-control" placeholder="Your username (required)">
                         </div>
                         
                         <div class="form-group">
-                            <label for="video-description-input">Description</label>
-                            <textarea id="video-description-input" class="form-control" placeholder="Video description (required)"></textarea>
+                            <label for="video-title">Title</label>
+                            <input type="text" id="video-title" class="form-control" placeholder="Video title (required)">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="video-description">Description</label>
+                            <textarea id="video-description" class="form-control" placeholder="Video description (required)"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="video-players">Players in clip</label>
+                            <input type="text" id="video-players" class="form-control" placeholder="Comma-separated list of players (optional)">
+                            <small class="form-text text-muted">Enter player names separated by commas (e.g. "Player1, Player2, Player3")</small>
                         </div>
                         
                         <div id="progress-container" class="progress-container" style="display: none;">
@@ -187,7 +200,12 @@
                                 <i class="fas fa-cloud-upload-alt"></i>
                             </div>
                             <p class="dropzone-text">Drag and drop multiple videos here or click to select</p>
-                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Max 2GB per file.</p>
+                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Max 10GB per file.</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="bulk-video-uploader">Username</label>
+                            <input type="text" id="bulk-video-uploader" class="form-control" placeholder="Your username (required)">
                         </div>
                         
                         <div id="upload-list" class="upload-list" style="display: none;">
@@ -200,19 +218,17 @@
                     </form>
                 </div>
             </div>
-        </div>
-    </div>
-
+        </div>    </div>      <!-- Load Keycloak from local file -->
+    <script src="lib/keycloak.js"></script>
+    
     <!-- Load app.js first for global variables -->
-    <script src="app.js"></script>
-    
-    <!-- Load the modular JavaScript files in the correct order -->
-    <script src="js/utils.js"></script>
-    <script src="js/videoPlayer.js"></script>
-    <script src="js/videoMetadata.js"></script>
-    <script src="js/videoComments.js"></script>
-    
-    <!-- Load the main video.js file last -->
-    <script src="video.js"></script>
+    <script src="app.js" type="module"></script>
+      <!-- Load the modular JavaScript files in the correct order -->
+    <script src="js/utils.js" defer></script>
+    <script src="js/videoPlayer.js" defer></script>
+    <script src="js/videoMetadata.js" defer></script>
+    <script src="js/videoComments.js" defer></script>
+      <!-- Load the main video.js file last -->
+    <script src="video.js" defer></script>
 </body>
 </html>

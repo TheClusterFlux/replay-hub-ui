@@ -11,6 +11,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Keycloak diagnostics (for debugging) -->
+    <script src="keycloak-diagnostics.js" defer></script>
 </head>
 <body>
     <header class="header">
@@ -26,9 +28,13 @@
             <button id="search-button">
                 <i class="fas fa-search"></i>
             </button>
-        </div>
-        
-        <div class="user-actions">
+        </div>        <div class="user-actions">
+            <button id="login-button" class="login-btn">
+                Login
+            </button>
+            <button id="register-button" class="register-btn">
+                Register
+            </button>
             <button id="upload-button" class="upload-btn">
                 <i class="fas fa-upload"></i>
                 Upload
@@ -37,7 +43,7 @@
     </header>
     
     <div class="main-content">
-        <aside class="sidebar">
+        <!-- <aside class="sidebar">
             <nav>
                 <a href="index.html" class="menu-item active">
                     <i class="fas fa-home"></i>
@@ -60,10 +66,10 @@
                     Liked Videos
                 </a>
             </nav>
-        </aside>
+        </aside> -->
         
         <main class="content">
-            <h2 class="section-title">Recommended Videos</h2>
+            <!-- <h2 class="section-title">Recommended Videos</h2> -->
             <div id="video-grid" class="video-grid">
                 <!-- Video cards will be dynamically inserted here -->
                 <div class="loading">Loading videos...</div>
@@ -154,9 +160,12 @@
                     </form>
                 </div>
             </div>
-        </div>
-    </div>
+        </div>    </div>
     
-    <script src="app.js"></script>
+    <!-- Load Keycloak from local file -->
+    <script src="lib/keycloak.js" type="module"></script>
+    
+    <!-- Load our application script -->
+    <script src="app.js" type="module"></script>
 </body>
 </html>

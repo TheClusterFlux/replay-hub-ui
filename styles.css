@@ -99,8 +99,119 @@ body {
   gap: 8px;
 }
 
+.login-btn {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: 500;
+  margin-right: 10px;
+}
+
+.login-btn:hover {
+  background-color: #45a049;
+}
+
+.register-btn {
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: 500;
+  margin-right: 10px;
+}
+
+.register-btn:hover {
+  background-color: #0b7dda;
+}
+
 .upload-btn:hover {
   background-color: #0351b7;
+}
+
+/* Profile button and dropdown */
+.profile-button {
+  position: relative;
+  margin-left: 10px;
+}
+
+.dropdown-toggle {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50px;
+  transition: background 0.2s;
+}
+
+.dropdown-toggle:hover {
+  background: var(--hover-color);
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  background: var(--accent-color);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  margin-right: 8px;
+}
+
+.profile-button .username {
+  max-width: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 4px;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--bg-secondary-color);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  border-radius: 4px;
+  width: 200px;
+  display: none;
+  margin-top: 8px;
+  z-index: 1000;
+}
+
+.dropdown-menu.show {
+  display: block;
+}
+
+.dropdown-item {
+  display: block;
+  padding: 10px 16px;
+  color: var(--text-color);
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.dropdown-item:hover {
+  background: var(--hover-color);
+}
+
+.dropdown-item i {
+  margin-right: 10px;
+  width: 16px;
+  text-align: center;
+}
+
+.dropdown-menu hr {
+  margin: 4px 0;
+  border: none;
+  border-top: 1px solid var(--border-color);
 }
 
 /* Main content */
@@ -336,13 +447,19 @@ body {
 .user-avatar {
   width: 40px;
   height: 40px;
+  background-color: #ddd;
+  color: #666;
   border-radius: 50%;
-  background-color: var(--border-color);
+  font-weight: bold;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary-color);
-  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.user-avatar.logged-in {
+  background-color: var(--accent-color);
+  color: white;
 }
 
 .comment-input-container {
