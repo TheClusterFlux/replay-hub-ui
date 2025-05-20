@@ -1,4 +1,4 @@
-import Keycloak from './lib/keycloak.js';
+import Keycloak from './js/keycloak.js';
 
 // Constants
 const ISLOCAL = false;
