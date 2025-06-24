@@ -671,9 +671,9 @@ function createVideoCard(video) {
     
     // Add click event to navigate to the video page
     card.addEventListener('click', () => {
-        // Use only the short video ID in the URL (not the S3 URL)
-        let idToUse = video.id || '';
-        if (!idToUse && video.short_id) idToUse = video.short_id;
+        // Use only the short video ID in the URL (not the S3 URL or Mongo _id)
+        let idToUse = video.short_id || '';
+        if (!idToUse && video.id) idToUse = video.id;
         if (!idToUse && video.s3_url) {
             // fallback: extract from s3_url if possible (legacy)
             try {
