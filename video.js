@@ -18,13 +18,9 @@ function initVideoPage() {
   const s3Url = urlParams.get('s3_url');
   const videoId = urlParams.get('id');
   
-  if (!s3Url) {
-    if (window.replayHub && window.replayHub.utils) {
-      window.replayHub.utils.showError('No video URL provided');
-    } else {
-      console.error('No video URL provided and utils module not available');
-      alert('Error: No video URL provided');
-    }
+  // If we have an ID but no s3_url, fetch the video metadata first
+  if (videoId && !s3Url) {
+    initializeVideoFromId(videoId);
     return;
   }
   
@@ -33,9 +29,42 @@ function initVideoPage() {
 }
 
 /**
+ * Initialize video from ID by fetching metadata first
+ */
+async function initializeVideoFromId(videoId) {
+  try {
+    console.log('Fetching video metadata for ID:', videoId);
+    
+    // Fetch video metadata
+    const response = await fetch(`${window.BASE_URL}/metadata/${videoId}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch video: ${response.status}`);
+    }
+    
+    const videoData = await response.json();
+    if (!videoData.s3_url) {
+      throw new Error('Video has no URL');
+    }
+    
+    console.log('Video metadata fetched:', videoData);
+    
+    // Initialize with the fetched s3_url and full video data
+    initializeVideoUI(videoData.s3_url, videoId, videoData);
+    
+  } catch (error) {
+    console.error('Error fetching video metadata:', error);
+    if (window.replayHub && window.replayHub.utils) {
+      window.replayHub.utils.showError('Video not found or failed to load');
+    } else {
+      alert('Error: Video not found or failed to load');
+    }
+  }
+}
+
+/**
  * Initialize video player and metadata
  */
-async function initializeVideoUI(s3Url, videoId) {
+async function initializeVideoUI(s3Url, videoId, videoData = null) {
   try {
     // Wait to ensure modules are initialized
     await waitForModulesReady();
@@ -58,18 +87,17 @@ async function initializeVideoUI(s3Url, videoId) {
       return;
     }
     
-    // Fetch and display video metadata if we have an ID
-    if (videoId && window.replayHub.videoMetadata) {
-      const videoData = await window.replayHub.videoMetadata.fetchVideoDetails(videoId);
-      window.replayHub.videoMetadata.updateVideoUI(videoData);
-      
-      // Initialize comments and reactions
-      if (window.replayHub.videoComments) {
-        window.replayHub.videoComments.initComments(videoId);
-        window.replayHub.videoComments.initReactions(videoId);
-      } else {
-        console.warn('Comments module not available');
+    // Use pre-fetched video data if available, otherwise fetch it
+    if (videoData) {
+      // Update UI with the data we already have
+      if (window.replayHub.videoMetadata) {
+        window.replayHub.videoMetadata.updateVideoUI(videoData);
       }
+    } else if (videoId && window.replayHub.videoMetadata) {
+      // Fetch and display video metadata if we have an ID but no data
+      const fetchedVideoData = await window.replayHub.videoMetadata.fetchVideoDetails(videoId);
+      window.replayHub.videoMetadata.updateVideoUI(fetchedVideoData);
+      videoData = fetchedVideoData; // Store for later use
     } else {
       // Basic title from URL if no ID provided
       const videoTitle = document.getElementById('video-title');
@@ -79,6 +107,15 @@ async function initializeVideoUI(s3Url, videoId) {
         videoTitle.textContent = prettyName;
       }
     }
+    
+    // Initialize comments and reactions if we have video data
+    if (videoId && window.replayHub.videoComments) {
+      window.replayHub.videoComments.initComments(videoId);
+      window.replayHub.videoComments.initReactions(videoId);
+    } else if (videoId) {
+      console.warn('Comments module not available');
+    }
+    
   } catch (err) {
     console.error("Error initializing video:", err);
     showErrorMessage('Error initializing video: ' + (err.message || 'Unknown error'));
