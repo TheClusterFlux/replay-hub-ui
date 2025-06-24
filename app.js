@@ -671,32 +671,26 @@ function createVideoCard(video) {
     
     // Add click event to navigate to the video page
     card.addEventListener('click', () => {
-        if (validS3Url) {
-            // Extract a more useful ID from the S3 URL if possible
-            let idToUse = video.id || '';
-            
-            // If we don't have a good ID but do have an S3 URL, try to extract a useful ID from it
-            if ((!idToUse || idToUse === '') && video.s3_url) {
-                try {
-                    const s3UrlParts = video.s3_url.split('/');
-                    const filename = s3UrlParts[s3UrlParts.length - 1];
-                    // Try to extract UUID pattern from the filename (before file extension)
-                    const filenameWithoutExt = filename.split('.')[0];
-                    // Look for a UUID pattern - with or without dashes
-                    const uuidMatch = filenameWithoutExt.match(/([a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12})|([a-f0-9]{32})/i);
-                    
-                    if (uuidMatch) {
-                        idToUse = uuidMatch[0];
-                        console.log(`Using extracted UUID ${idToUse} from S3 URL as video ID`);
-                    }
-                } catch (e) {
-                    console.warn('Error extracting ID from S3 URL:', e);
+        // Use only the short video ID in the URL (not the S3 URL)
+        let idToUse = video.id || '';
+        if (!idToUse && video.short_id) idToUse = video.short_id;
+        if (!idToUse && video.s3_url) {
+            // fallback: extract from s3_url if possible (legacy)
+            try {
+                const s3UrlParts = video.s3_url.split('/');
+                const filename = s3UrlParts[s3UrlParts.length - 1];
+                const filenameWithoutExt = filename.split('.')[0];
+                const uuidMatch = filenameWithoutExt.match(/([a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12})|([a-f0-9]{32})/i);
+                if (uuidMatch) {
+                    idToUse = uuidMatch[0];
                 }
+            } catch (e) {
+                console.warn('Error extracting ID from S3 URL:', e);
             }
-            
-            window.location.href = `video.html?s3_url=${encodeURIComponent(video.s3_url)}&id=${encodeURIComponent(idToUse)}`;
+        }
+        if (idToUse) {
+            window.location.href = `video.html?id=${encodeURIComponent(idToUse)}`;
         } else {
-            console.error('Cannot navigate to video: Missing or invalid s3_url');
             alert('Sorry, this video is currently unavailable.');
         }
     });
@@ -795,34 +789,33 @@ function filterVideos(searchTerm) {
 // Function to initialize the video page
 function initVideoPage() {
     const urlParams = new URLSearchParams(window.location.search);
-    const s3Url = urlParams.get('s3_url');
     const videoId = urlParams.get('id');
-    
-    if (!s3Url) {
-        console.error('Missing s3_url parameter');
-        alert('Error: Video URL not provided.');
+    if (!videoId) {
+        alert('Error: Video ID not provided.');
         return;
     }
-    
-    // Update the video view count when the page is loaded
-    if (videoId) {
-        updateVideoView(videoId)
-            .then(response => {
-                console.log('View count updated:', response);
-                // Update the view count in the UI if needed
-                const viewCountElement = document.getElementById('view-count');
-                if (viewCountElement && response && response.views) {
-                    viewCountElement.textContent = formatViews(response.views);
-                }
-            })
-            .catch(error => {
-                console.error('Error updating view count:', error);
-            });
-    }
-    
-    // Initialize video player, metadata, etc.
-    // This function would contain code specific to the video page
-    console.log('Video page initialized for:', s3Url, 'ID:', videoId);
+    // Fetch video metadata by short ID
+    fetchVideo(videoId)
+        .then(video => {
+            if (!video) {
+                alert('Video not found.');
+                return;
+            }
+            // Update the video view count
+            updateVideoView(videoId)
+                .then(response => {
+                    const viewCountElement = document.getElementById('view-count');
+                    if (viewCountElement && response && response.views) {
+                        viewCountElement.textContent = formatViews(response.views);
+                    }
+                });
+            // Initialize video player, metadata, etc. using video.s3_url
+            // ...existing code for video page setup...
+            console.log('Video page initialized for:', video.s3_url, 'ID:', videoId);
+        })
+        .catch(error => {
+            alert('Error loading video.');
+        });
 }
 
 // Wait for DOM to be loaded before initializing
