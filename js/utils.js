@@ -63,6 +63,7 @@ function formatVideoTitle(filename) {
 
 /**
  * Detect the MIME type of a video based on its URL
+ * Enhanced for better S3 and streaming compatibility
  * @param {string} url - The URL of the video
  * @returns {string} - The MIME type
  */
@@ -70,28 +71,60 @@ function detectVideoType(url) {
   if (!url) return 'video/mp4'; // Default
   
   try {
-    if (url.toLowerCase().includes('.m3u8')) {
-      return 'application/x-mpegURL'; // HLS stream
+    const lowercaseUrl = url.toLowerCase();
+    
+    // Check for streaming formats first
+    if (lowercaseUrl.includes('.m3u8')) {
+      return 'application/vnd.apple.mpegurl'; // HLS stream (updated MIME type)
     }
     
-    if (url.toLowerCase().includes('.mpd')) {
+    if (lowercaseUrl.includes('.mpd')) {
       return 'application/dash+xml'; // DASH stream
     }
     
-    const extension = url.split('.').pop().toLowerCase().split('?')[0];
+    // Extract file extension, handling query parameters and S3 URLs
+    let extension = '';
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      const parts = pathname.split('.');
+      if (parts.length > 1) {
+        extension = parts.pop().toLowerCase();
+      }
+    } catch (e) {
+      // Fallback to simple extension extraction
+      const parts = url.split('.');
+      if (parts.length > 1) {
+        extension = parts.pop().toLowerCase().split('?')[0];
+      }
+    }
+    
+    // Comprehensive MIME type mapping
     const mimeTypes = {
       'mp4': 'video/mp4',
+      'm4v': 'video/mp4',
       'webm': 'video/webm',
       'ogv': 'video/ogg',
+      'ogg': 'video/ogg',
       'mov': 'video/quicktime',
+      'qt': 'video/quicktime',
       'avi': 'video/x-msvideo',
       'wmv': 'video/x-ms-wmv',
+      'asf': 'video/x-ms-asf',
       'flv': 'video/x-flv',
-      'mkv': 'video/x-matroska'
+      'f4v': 'video/x-f4v',
+      'mkv': 'video/x-matroska',
+      'mka': 'video/x-matroska',
+      '3gp': 'video/3gpp',
+      '3g2': 'video/3gpp2',
+      'mts': 'video/mp2t',
+      'ts': 'video/mp2t',
+      'vob': 'video/dvd'
     };
     
     return mimeTypes[extension] || 'video/mp4';
   } catch (e) {
+    console.warn('Error detecting video type:', e);
     return 'video/mp4'; // Default to mp4
   }
 }

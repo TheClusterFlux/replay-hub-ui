@@ -74,14 +74,13 @@ async function initializeVideoUI(s3Url, videoId, videoData = null) {
       showErrorMessage('Video player could not be loaded');
       return;
     }
-    
-    // Initialize video player
-    if (window.videojs && window.replayHub.videoPlayer) {
+      // Initialize video player
+    if (window.Plyr && window.replayHub.videoPlayer) {
       window.replayHub.videoPlayer.initVideoPlayer(s3Url);
     } else {
       showErrorMessage('Video player library failed to load');
       console.error('Missing dependencies:', {
-        'videojs': !!window.videojs,
+        'Plyr': !!window.Plyr,
         'replayHub.videoPlayer': !!(window.replayHub && window.replayHub.videoPlayer)
       });
       return;

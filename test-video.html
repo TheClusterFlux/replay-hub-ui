@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Video Player - Replay Hub</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Plyr video player for better browser compatibility -->
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+    <!-- HLS.js for adaptive streaming -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+    <div class="video-container">
+        <div class="video-player-wrapper">
+            <video
+                id="video-player"
+                class="custom-video-player"
+                controls
+                crossorigin
+                playsinline
+                poster="">
+                <p>
+                    Your browser doesn't support HTML5 video. Please update your browser or try a different one.
+                </p>
+            </video>
+            
+            <!-- Fallback iframe for when video fails to load -->
+            <iframe
+                id="video-embed"
+                style="display: none;"
+                class="video-player"
+                title="Video Player"
+                border="0"
+                allowfullscreen>
+            </iframe>
+        </div>
+        
+        <div class="video-details">
+            <h1>Test Video Player</h1>
+            <p>Testing the new Plyr-based video player with sample video.</p>
+            
+            <div style="margin-top: 20px;">
+                <h3>Test URLs:</h3>
+                <button onclick="testVideo('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4')">
+                    Test MP4 Video
+                </button>
+                <button onclick="testVideo('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8')">
+                    Test HLS Stream
+                </button>
+                <button onclick="testVideo('https://sample-videos.com/zip/10/webm/SampleVideo_1280x720_1mb.webm')">
+                    Test WebM Video
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize globals
+        window.replayHub = window.replayHub || {};
+        window.BASE_URL = 'http://localhost:3000'; // Mock base URL for testing
+        
+        // Mock utils for testing
+        window.replayHub.utils = {
+            detectVideoType: function(url) {
+                if (!url) return 'video/mp4';
+                
+                const lowercaseUrl = url.toLowerCase();
+                
+                if (lowercaseUrl.includes('.m3u8')) {
+                    return 'application/vnd.apple.mpegurl';
+                }
+                
+                if (lowercaseUrl.includes('.mpd')) {
+                    return 'application/dash+xml';
+                }
+                
+                let extension = '';
+                try {
+                    const urlObj = new URL(url);
+                    const pathname = urlObj.pathname;
+                    const parts = pathname.split('.');
+                    if (parts.length > 1) {
+                        extension = parts.pop().toLowerCase();
+                    }
+                } catch (e) {
+                    const parts = url.split('.');
+                    if (parts.length > 1) {
+                        extension = parts.pop().toLowerCase().split('?')[0];
+                    }
+                }
+                
+                const mimeTypes = {
+                    'mp4': 'video/mp4',
+                    'webm': 'video/webm',
+                    'ogv': 'video/ogg',
+                    'mov': 'video/quicktime',
+                    'avi': 'video/x-msvideo'
+                };
+                
+                return mimeTypes[extension] || 'video/mp4';
+            },
+            showError: function(message) {
+                alert('Error: ' + message);
+            }
+        };
+        
+        // Load the video player module
+        let currentPlayer = null;
+        let currentHls = null;
+
+        function initVideoPlayer(videoUrl) {
+            const videoPlayer = document.getElementById('video-player');
+            const videoEmbed = document.getElementById('video-embed');
+            
+            if (!videoPlayer || !videoEmbed) {
+                console.error("Video player elements not found");
+                return;
+            }
+            
+            if (!videoUrl) {
+                console.error('No video URL provided');
+                return;
+            }
+            
+            console.log('Initializing video player with URL:', videoUrl);
+            
+            // Clean up any existing player
+            cleanupPlayer();
+            
+            const isHlsStream = videoUrl.toLowerCase().includes('.m3u8');
+            const videoType = window.replayHub.utils.detectVideoType(videoUrl);
+            
+            console.log('Video type detected:', videoType, 'HLS:', isHlsStream);
+            
+            videoPlayer.style.display = 'block';
+            videoEmbed.style.display = 'none';
+            
+            try {
+                if (isHlsStream && window.Hls && Hls.isSupported()) {
+                    initHlsPlayer(videoPlayer, videoUrl);
+                } else {
+                    initDirectPlayer(videoPlayer, videoUrl, videoType);
+                }
+            } catch (error) {
+                console.error('Error setting up player:', error);
+                fallbackToIframe(videoUrl, videoPlayer, videoEmbed);
+            }
+        }
+
+        function initHlsPlayer(videoElement, videoUrl) {
+            if (!window.Hls || !Hls.isSupported()) {
+                console.warn('HLS not supported, falling back to direct player');
+                initDirectPlayer(videoElement, videoUrl, 'application/vnd.apple.mpegurl');
+                return;
+            }
+            
+            try {
+                currentHls = new Hls({
+                    debug: false,
+                    enableWorker: true
+                });
+                
+                currentHls.loadSource(videoUrl);
+                currentHls.attachMedia(videoElement);
+                
+                currentHls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    console.log('HLS manifest parsed successfully');
+                    initPlyrPlayer(videoElement);
+                });
+                
+                currentHls.on(Hls.Events.ERROR, function(event, data) {
+                    console.error('HLS error:', data);
+                    if (data.fatal) {
+                        console.error('Fatal HLS error, falling back');
+                        fallbackToDirectPlayer(videoElement, videoUrl);
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Error initializing HLS player:', error);
+                fallbackToDirectPlayer(videoElement, videoUrl);
+            }
+        }
+
+        function initDirectPlayer(videoElement, videoUrl, videoType) {
+            try {
+                videoElement.src = videoUrl;
+                
+                videoElement.onerror = function(e) {
+                    console.error('Video error:', e);
+                    const videoEmbed = document.getElementById('video-embed');
+                    fallbackToIframe(videoUrl, videoElement, videoEmbed);
+                };
+                
+                videoElement.onloadedmetadata = function() {
+                    console.log('Video metadata loaded successfully');
+                };
+                
+                initPlyrPlayer(videoElement);
+                
+            } catch (error) {
+                console.error('Error setting up direct player:', error);
+                const videoEmbed = document.getElementById('video-embed');
+                fallbackToIframe(videoUrl, videoElement, videoEmbed);
+            }
+        }
+
+        function initPlyrPlayer(videoElement) {
+            if (!window.Plyr) {
+                console.warn('Plyr not available, using native controls');
+                return;
+            }
+            
+            try {
+                const plyrConfig = {
+                    controls: [
+                        'play-large',
+                        'play',
+                        'progress', 
+                        'current-time',
+                        'duration',
+                        'mute',
+                        'volume',
+                        'settings',
+                        'fullscreen'
+                    ],
+                    settings: ['quality', 'speed'],
+                    speed: {
+                        selected: 1,
+                        options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
+                    },
+                    ratio: '16:9',
+                    crossorigin: true,
+                    preload: 'metadata'
+                };
+                
+                currentPlayer = new Plyr(videoElement, plyrConfig);
+                
+                currentPlayer.on('ready', () => {
+                    console.log('Plyr player ready');
+                });
+                
+                currentPlayer.on('error', (event) => {
+                    console.error('Plyr error:', event);
+                    const videoEmbed = document.getElementById('video-embed');
+                    fallbackToIframe(videoElement.src || videoElement.currentSrc, videoElement, videoEmbed);
+                });
+                
+                currentPlayer.on('loadstart', () => {
+                    console.log('Video loading started');
+                });
+                
+                currentPlayer.on('canplay', () => {
+                    console.log('Video can start playing');
+                });
+                
+            } catch (error) {
+                console.error('Error initializing Plyr:', error);
+            }
+        }
+
+        function fallbackToDirectPlayer(videoElement, videoUrl) {
+            console.log('Falling back to direct player');
+            cleanupHls();
+            
+            const videoType = window.replayHub.utils.detectVideoType(videoUrl);
+            initDirectPlayer(videoElement, videoUrl, videoType);
+        }
+
+        function fallbackToIframe(videoUrl, videoPlayer, videoEmbed) {
+            console.log('Falling back to iframe player');
+            cleanupPlayer();
+            
+            if (videoPlayer) videoPlayer.style.display = 'none';
+            if (videoEmbed) {
+                videoEmbed.style.display = 'block';
+                videoEmbed.src = videoUrl;
+            }
+        }
+
+        function cleanupPlayer() {
+            cleanupHls();
+            cleanupPlyr();
+        }
+
+        function cleanupHls() {
+            if (currentHls) {
+                try {
+                    currentHls.destroy();
+                } catch (error) {
+                    console.warn('Error destroying HLS instance:', error);
+                }
+                currentHls = null;
+            }
+        }
+
+        function cleanupPlyr() {
+            if (currentPlayer) {
+                try {
+                    currentPlayer.destroy();
+                } catch (error) {
+                    console.warn('Error destroying Plyr instance:', error);
+                }
+                currentPlayer = null;
+            }
+        }
+
+        // Test function
+        function testVideo(url) {
+            console.log('Testing video URL:', url);
+            initVideoPlayer(url);
+        }
+
+        // Initialize with default test video
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                testVideo('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

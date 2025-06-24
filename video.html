@@ -10,14 +10,11 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <!-- Video.js for better video player -->
-    <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet">
-    <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">    <!-- Plyr video player for better browser compatibility -->
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
     <!-- HLS.js for adaptive streaming -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <!-- Video.js quality selector plugin -->
-    <link href="https://unpkg.com/@videojs/themes@1/dist/forest/index.css" rel="stylesheet">
 </head>
 <body>
     <header class="header">
@@ -47,20 +44,21 @@
         </div>
     </header>
     
-    <div class="video-container">
-        <div class="video-player-wrapper">
+    <div class="video-container">        <div class="video-player-wrapper">
             <video
                 id="video-player"
-                class="video-js vjs-big-play-centered video-player"
+                class="custom-video-player"
                 controls
-                preload="auto"
-                poster=""
-                data-setup="{}">
-                <p class="vjs-no-js">
-                    To view this video please enable JavaScript, and consider upgrading to a
-                    web browser that supports HTML5 video
+                crossorigin
+                playsinline
+                poster="">
+                <p>
+                    Your browser doesn't support HTML5 video. Please update your browser or try a different one.
                 </p>
-            </video>            <iframe
+            </video>
+            
+            <!-- Fallback iframe for when video fails to load -->
+            <iframe
                 id="video-embed"
                 style="display: none;"
                 class="video-player"
@@ -218,8 +216,8 @@
                     </form>
                 </div>
             </div>
-        </div>    </div>      <!-- Load Keycloak from local file -->
-    <script src="lib/keycloak.js"></script>
+        </div>    </div>    <!-- Load Keycloak from js folder -->
+    <script src="js/keycloak.js"></script>
     
     <!-- Load app.js first for global variables -->
     <script src="app.js" type="module"></script>
