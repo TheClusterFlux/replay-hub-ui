@@ -1,5 +1,3 @@
-import Keycloak from './js/keycloak.js';
-
 // Constants
 const ISLOCAL = false;
 export const BASE_URL = ISLOCAL ? 'http://localhost:8080' : 'https://replay-hub.theclusterflux.com';
@@ -7,91 +5,133 @@ export const BASE_URL = ISLOCAL ? 'http://localhost:8080' : 'https://replay-hub.
 // Make BASE_URL available globally for non-module scripts
 window.BASE_URL = BASE_URL;
 
-// Initialize Keycloak
-const keycloak = new Keycloak({
-    url: "https://keycloak.theclusterflux.com", 
-    realm: "ReplayHub",
-    clientId: "replay-hub"
-});
+// Initialize current user state
+let currentUser = {
+    id: null,
+    name: 'Guest User',
+    username: null,
+    email: null,
+    avatar: null,
+    isLoggedIn: false
+};
 
-// Initialize Keycloak with an IIFE
-(async function initKeycloak() {
+// Make current user available globally
+window.currentUser = currentUser;
+
+// Auth-related functions
+async function initializeAuth() {
     try {
-        // Add initialization options with simpler configuration
-        const initOptions = {
-            pkceMethod: 'S256', // Use PKCE for public clients (recommended)
-            checkLoginIframe: false, // Disable iframe check which can cause issues
-            enableLogging: true, // Enable logging for debugging
-            responseMode: 'fragment', // Use fragment response mode for better compatibility
-            flow: 'standard', // Use standard authorization code flow
-            onLoad: 'check-sso', // Check for existing sessions without login prompt
-            promiseType: 'native' // Use native promises
-        };
-        
-        const authenticated = await keycloak.init(initOptions);
-        if (authenticated) {
-            console.log('User is authenticated');
-            // Update UI for logged in state
-            updateLoginStatus(true);
+        // Initialize the auth module
+        if (window.replayHub && window.replayHub.auth) {
+            const isAuthenticated = await window.replayHub.auth.initAuth();
+            updateLoginStatus(isAuthenticated);
+            return isAuthenticated;
         } else {
-            console.log('User is not authenticated');
-            // Update UI for logged out state
-            updateLoginStatus(false);
+            console.warn('Auth module not loaded yet, will retry...');
+            // Retry after a short delay
+            setTimeout(initializeAuth, 100);
+            return false;
         }
-    
     } catch (error) {
-        console.error('Failed to initialize adapter:', error);
+        console.error('Failed to initialize authentication:', error);
+        updateLoginStatus(false);
+        return false;
+    }
+}
+
+// Login function for UI
+async function loginUser(username, password) {
+    try {
+        if (!window.replayHub || !window.replayHub.auth) {
+            throw new Error('Authentication module not loaded');
+        }
+        
+        const result = await window.replayHub.auth.login(username, password);
+        
+        if (result.success) {
+            updateLoginStatus(true);
+            // Close login modal if it exists
+            const loginModal = document.getElementById('loginModal');
+            if (loginModal) {
+                loginModal.style.display = 'none';
+            }
+            
+            // Show success message
+            showMessage('Login successful!', 'success');
+            
+            return result;
+        } else {
+            showMessage(result.error || 'Login failed', 'error');
+            return result;
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        showMessage('Login failed due to network error', 'error');
+        return { success: false, error: error.message };
+    }
+}
+
+// Register function for UI
+async function registerUser(userData) {
+    try {
+        if (!window.replayHub || !window.replayHub.auth) {
+            throw new Error('Authentication module not loaded');
+        }
+        
+        const result = await window.replayHub.auth.register(userData);
+        
+        if (result.success) {
+            updateLoginStatus(true);
+            // Close register modal if it exists
+            const registerModal = document.getElementById('registerModal');
+            if (registerModal) {
+                registerModal.style.display = 'none';
+            }
+            
+            // Show success message
+            showMessage('Registration successful! Welcome to Replay Hub!', 'success');
+            
+            return result;
+        } else {
+            showMessage(result.error || 'Registration failed', 'error');
+            return result;
+        }
+    } catch (error) {
+        console.error('Registration error:', error);
+        showMessage('Registration failed due to network error', 'error');
+        return { success: false, error: error.message };
+    }
+}
+
+// Logout function for UI
+async function logoutUser() {
+    try {
+        if (window.replayHub && window.replayHub.auth) {
+            await window.replayHub.auth.logout();
+        }
+        updateLoginStatus(false);
+        showMessage('Logged out successfully', 'info');
+    } catch (error) {
+        console.error('Logout error:', error);
+        // Still update UI even if server logout fails
         updateLoginStatus(false);
     }
-})();
-
+}
 
 // Make login, register, and logout functions globally accessible
 window.login = function() {
-    console.log('Login function called');
-    if (keycloak) {
-        keycloak.login().catch(error => {
-            console.error('Login error:', error);
-        });
-    } else {
-        console.error('Keycloak not initialized');
-    }
+    console.log('Login function called - opening login modal');
+    showLoginModal();
 };
 
 window.register = function() {
-    console.log('Register function called');
-    if (keycloak) {
-        try {
-            const options = {
-                redirectUri: window.location.href,
-                scope: 'openid',
-                prompt: 'login',
-                action: 'register'
-            };
-            
-            console.log('Initiating registration with standard login flow and action=register');
-            
-            // Use login() with action=register instead of createRegisterUrl()
-            keycloak.login(options).catch(error => {
-                console.error('Registration error:', error);
-            });
-        } catch (error) {
-            console.error('Registration function error:', error);
-        }
-    } else {
-        console.error('Keycloak not initialized');
-    }
+    console.log('Register function called - opening register modal');
+    showRegisterModal();
 };
 
 window.logout = function() {
     console.log('Logout function called');
-    if (keycloak && keycloak.authenticated) {
-        keycloak.logout().catch(error => {
-            console.error('Logout error:', error);
-        });
-    } else {
-        console.log('Not authenticated, nothing to do');
-    }
+    logoutUser();
 };
 
 // Use the global functions for UI event handlers
@@ -107,22 +147,28 @@ function logout() {
     window.logout();
 }
 
-
 function updateLoginStatus(isLoggedIn) {
     const loginButton = document.getElementById('login-button');
     const registerButton = document.getElementById('register-button');
     const uploadButton = document.getElementById('upload-button');
     
     // Update current user information
-    if (isLoggedIn && keycloak.tokenParsed) {
-        currentUser.id = keycloak.subject || keycloak.tokenParsed.sub;
-        currentUser.name = keycloak.tokenParsed.preferred_username || keycloak.tokenParsed.name || 'User';
-        currentUser.avatar = keycloak.tokenParsed.picture || null;
-        currentUser.isLoggedIn = true;
-        console.log('User logged in:', currentUser.name);
+    if (isLoggedIn && window.replayHub && window.replayHub.auth) {
+        const user = window.replayHub.auth.getCurrentUser();
+        if (user) {
+            currentUser.id = user.id;
+            currentUser.name = user.display_name || user.username;
+            currentUser.username = user.username;
+            currentUser.email = user.email;
+            currentUser.avatar = user.profile_picture;
+            currentUser.isLoggedIn = true;
+            console.log('User logged in:', currentUser.name);
+        }
     } else {
         currentUser.id = 'guest-user';
         currentUser.name = 'Guest User';
+        currentUser.username = null;
+        currentUser.email = null;
         currentUser.avatar = null;
         currentUser.isLoggedIn = false;
     }
@@ -146,7 +192,11 @@ function updateLoginStatus(isLoggedIn) {
                     // Add profile avatar and name
                     const avatar = document.createElement('div');
                     avatar.className = 'avatar';
-                    avatar.textContent = currentUser.name.charAt(0).toUpperCase();
+                    if (currentUser.avatar) {
+                        avatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.name}" />`;
+                    } else {
+                        avatar.textContent = currentUser.name.charAt(0).toUpperCase();
+                    }
                     
                     const username = document.createElement('span');
                     username.className = 'username';
@@ -162,6 +212,16 @@ function updateLoginStatus(isLoggedIn) {
                     const dropdownMenu = document.createElement('div');
                     dropdownMenu.className = 'dropdown-menu';
                     
+                    // Add profile option
+                    const profileOption = document.createElement('a');
+                    profileOption.href = '#';
+                    profileOption.className = 'dropdown-item';
+                    profileOption.innerHTML = '<i class="fas fa-user"></i> Profile';
+                    profileOption.onclick = (e) => {
+                        e.preventDefault();
+                        showProfileModal();
+                    };
+                    
                     // Add logout option
                     const logoutOption = document.createElement('a');
                     logoutOption.href = '#';
@@ -169,21 +229,8 @@ function updateLoginStatus(isLoggedIn) {
                     logoutOption.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout';
                     logoutOption.onclick = logout;
                     
-                    // // Add profile option for future use
-                    // const profileOption = document.createElement('a');
-                    // profileOption.href = '#';
-                    // profileOption.className = 'dropdown-item';
-                    // profileOption.innerHTML = '<i class="fas fa-user"></i> Profile';
-                    
-                    // // Add settings option for future use
-                    // const settingsOption = document.createElement('a');
-                    // settingsOption.href = '#';
-                    // settingsOption.className = 'dropdown-item';
-                    // settingsOption.innerHTML = '<i class="fas fa-cog"></i> Settings';
-                    
                     // Assemble dropdown menu
-                    // dropdownMenu.appendChild(profileOption);
-                    // dropdownMenu.appendChild(settingsOption);
+                    dropdownMenu.appendChild(profileOption);
                     dropdownMenu.appendChild(document.createElement('hr'));
                     dropdownMenu.appendChild(logoutOption);
                     
@@ -198,64 +245,323 @@ function updateLoginStatus(isLoggedIn) {
                         dropdownMenu.classList.toggle('show');
                     });
                     
-                    // Close the dropdown when clicking outside
+                    // Close dropdown when clicking outside
                     document.addEventListener('click', (e) => {
                         if (!profileButton.contains(e.target)) {
                             dropdownMenu.classList.remove('show');
                         }
                     });
                     
-                    // Hide login and register buttons
-                    loginButton.style.display = 'none';
-                    if (registerButton) {
-                        registerButton.style.display = 'none';
-                    }
-                    
-                    // Add the profile button to the user actions
+                    // Add to user actions
                     userActions.appendChild(profileButton);
                 }
+            } else {
+                // Update existing profile button
+                const avatar = profileButton.querySelector('.avatar');
+                const username = profileButton.querySelector('.username');
+                
+                if (avatar) {
+                    if (currentUser.avatar) {
+                        avatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.name}" />`;
+                    } else {
+                        avatar.textContent = currentUser.name.charAt(0).toUpperCase();
+                    }
+                }
+                
+                if (username) {
+                    username.textContent = currentUser.name;
+                }
             }
+            
+            // Hide login/register buttons
+            if (loginButton) loginButton.style.display = 'none';
+            if (registerButton) registerButton.style.display = 'none';
+            
+            // Show profile button
+            if (profileButton) profileButton.style.display = 'block';
         } else {
-            // Remove profile button if it exists
+            // Show login/register buttons
+            if (loginButton) loginButton.style.display = 'block';
+            if (registerButton) registerButton.style.display = 'block';
+            
+            // Hide and remove profile button
             const profileButton = document.getElementById('profile-button');
             if (profileButton) {
                 profileButton.remove();
             }
-            
-            // Show login and register buttons
-            loginButton.style.display = 'inline-block';
-            loginButton.textContent = 'Login';
-            loginButton.onclick = login;
-            
-            if (registerButton) {
-                registerButton.style.display = 'inline-block';
-            }
         }
     }
     
-    // Set register button action
-    if (registerButton && !isLoggedIn) {
-        registerButton.onclick = register;
-    }
-    
-    // Update upload button - only show if logged in
+    // Enable/disable upload button based on authentication
     if (uploadButton) {
         if (isLoggedIn) {
-            uploadButton.style.display = 'inline-block';
+            uploadButton.disabled = false;
+            uploadButton.title = 'Upload a video';
         } else {
-            uploadButton.style.display = 'inline-block'; // Keep showing it but we'll prompt for login when clicked
+            uploadButton.disabled = true; // Require authentication for uploads
+            uploadButton.title = 'Please login to upload videos';
         }
     }
 }
 
+// Message display function
+function showMessage(message, type = 'info') {
+    // Create or update message element
+    let messageEl = document.getElementById('auth-message');
+    if (!messageEl) {
+        messageEl = document.createElement('div');
+        messageEl.id = 'auth-message';
+        messageEl.className = 'auth-message';
+        document.body.appendChild(messageEl);
+    }
+    
+    messageEl.textContent = message;
+    messageEl.className = `auth-message ${type}`;
+    messageEl.style.display = 'block';
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        messageEl.style.display = 'none';
+    }, 5000);
+}
+
+// Modal functions
+function showLoginModal() {
+    let modal = document.getElementById('loginModal');
+    if (!modal) {
+        modal = createLoginModal();
+        document.body.appendChild(modal);
+    }
+    modal.style.display = 'block';
+}
+
+function showRegisterModal() {
+    let modal = document.getElementById('registerModal');
+    if (!modal) {
+        modal = createRegisterModal();
+        document.body.appendChild(modal);
+    }
+    modal.style.display = 'block';
+}
+
+function showProfileModal() {
+    let modal = document.getElementById('profileModal');
+    if (!modal) {
+        modal = createProfileModal();
+        document.body.appendChild(modal);
+    }
+    
+    // Populate form with current user data
+    const user = window.replayHub.auth.getCurrentUser();
+    if (user) {
+        document.getElementById('profile-first-name').value = user.first_name || '';
+        document.getElementById('profile-last-name').value = user.last_name || '';
+        document.getElementById('profile-bio').value = user.bio || '';
+        
+        const avatarPreview = document.getElementById('profile-avatar-preview');
+        if (user.profile_picture) {
+            avatarPreview.innerHTML = `<img src="${user.profile_picture}" alt="Profile Picture" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover;" />`;
+        } else {
+            avatarPreview.innerHTML = `<div style="width: 100px; height: 100px; border-radius: 50%; background: #ddd; display: flex; align-items: center; justify-content: center; font-size: 2em;">${user.display_name.charAt(0).toUpperCase()}</div>`;
+        }
+    }
+    
+    modal.style.display = 'block';
+}
+
+function createLoginModal() {
+    const modal = document.createElement('div');
+    modal.id = 'loginModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Login to Replay Hub</h2>
+                <span class="close" onclick="document.getElementById('loginModal').style.display='none'">&times;</span>
+            </div>
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="login-username">Username or Email:</label>
+                    <input type="text" id="login-username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password:</label>
+                    <input type="password" id="login-password" name="password" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit">Login</button>
+                    <button type="button" onclick="showRegisterModal(); document.getElementById('loginModal').style.display='none'">Need an account? Register</button>
+                </div>
+            </form>
+        </div>
+    `;
+    return modal;
+}
+
+function createRegisterModal() {
+    const modal = document.createElement('div');
+    modal.id = 'registerModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Join Replay Hub</h2>
+                <span class="close" onclick="document.getElementById('registerModal').style.display='none'">&times;</span>
+            </div>
+            <form id="registerForm" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label for="register-username">Username:</label>
+                    <input type="text" id="register-username" name="username" required minlength="3" maxlength="30" pattern="[a-zA-Z0-9_-]+">
+                    <small>3-30 characters, letters, numbers, underscores, and hyphens only</small>
+                </div>
+                <div class="form-group">
+                    <label for="register-email">Email:</label>
+                    <input type="email" id="register-email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="register-password">Password:</label>
+                    <input type="password" id="register-password" name="password" required minlength="8">
+                    <small>At least 8 characters</small>
+                </div>
+                <div class="form-group">
+                    <label for="register-first-name">First Name (optional):</label>
+                    <input type="text" id="register-first-name" name="first_name">
+                </div>
+                <div class="form-group">
+                    <label for="register-last-name">Last Name (optional):</label>
+                    <input type="text" id="register-last-name" name="last_name">
+                </div>
+                <div class="form-group">
+                    <label for="register-profile-picture">Profile Picture (optional):</label>
+                    <input type="file" id="register-profile-picture" name="profile_picture" accept="image/*">
+                </div>
+                <div class="form-actions">
+                    <button type="submit">Register</button>
+                    <button type="button" onclick="showLoginModal(); document.getElementById('registerModal').style.display='none'">Already have an account? Login</button>
+                </div>
+            </form>
+        </div>
+    `;
+    return modal;
+}
+
+function createProfileModal() {
+    const modal = document.createElement('div');
+    modal.id = 'profileModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Profile</h2>
+                <span class="close" onclick="document.getElementById('profileModal').style.display='none'">&times;</span>
+            </div>
+            <form id="profileForm" onsubmit="handleProfileUpdate(event)">
+                <div class="form-group">
+                    <label>Current Profile Picture:</label>
+                    <div id="profile-avatar-preview"></div>
+                </div>
+                <div class="form-group">
+                    <label for="profile-picture">New Profile Picture (optional):</label>
+                    <input type="file" id="profile-picture" name="profile_picture" accept="image/*">
+                </div>
+                <div class="form-group">
+                    <label for="profile-first-name">First Name:</label>
+                    <input type="text" id="profile-first-name" name="first_name">
+                </div>
+                <div class="form-group">
+                    <label for="profile-last-name">Last Name:</label>
+                    <input type="text" id="profile-last-name" name="last_name">
+                </div>
+                <div class="form-group">
+                    <label for="profile-bio">Bio:</label>
+                    <textarea id="profile-bio" name="bio" rows="3" maxlength="500"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit">Update Profile</button>
+                    <button type="button" onclick="showChangePasswordModal()">Change Password</button>
+                </div>
+            </form>
+        </div>
+    `;
+    return modal;
+}
+
+// Form handlers
+async function handleLogin(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const username = formData.get('username');
+    const password = formData.get('password');
+    
+    await loginUser(username, password);
+}
+
+async function handleRegister(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const userData = {
+        username: formData.get('username'),
+        email: formData.get('email'),
+        password: formData.get('password'),
+        first_name: formData.get('first_name'),
+        last_name: formData.get('last_name'),
+        profile_picture: formData.get('profile_picture')
+    };
+    
+    await registerUser(userData);
+}
+
+async function handleProfileUpdate(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const userData = {
+        first_name: formData.get('first_name'),
+        last_name: formData.get('last_name'),
+        bio: formData.get('bio'),
+        profile_picture: formData.get('profile_picture')
+    };
+    
+    try {
+        const result = await window.replayHub.auth.updateProfile(userData);
+        if (result.success) {
+            updateLoginStatus(true);
+            document.getElementById('profileModal').style.display = 'none';
+            showMessage('Profile updated successfully!', 'success');
+        }
+    } catch (error) {
+        console.error('Profile update error:', error);
+        showMessage('Failed to update profile', 'error');
+    }
+}
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    const modals = ['loginModal', 'registerModal', 'profileModal'];
+    modals.forEach(modalId => {
+        const modal = document.getElementById(modalId);
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+};
+
+// Initialize authentication when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, initializing authentication...');
+    // Add a small delay to ensure auth module is loaded
+    setTimeout(initializeAuth, 100);
+});
+
+// Also try to initialize if DOM is already loaded
+if (document.readyState === 'loading') {
+    // DOM is still loading
+} else {
+    // DOM is already loaded
+    setTimeout(initializeAuth, 100);
+}
+
 // Global state
 let allVideos = []; 
-let currentUser = {
-    id: 'guest-user',
-    name: 'Guest User',
-    avatar: null,
-    isLoggedIn: false
-};
 
 // Utility functions
 function formatDate(date) {
@@ -424,6 +730,14 @@ async function uploadVideo(formData, progressCallback) {
         
         xhr.open('POST', `${BASE_URL}/upload`, true);
         
+        // Add JWT authentication header if available
+        if (window.replayHub && window.replayHub.auth && window.replayHub.auth.isAuthenticated()) {
+            const token = localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token');
+            if (token) {
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            }
+        }
+        
         xhr.upload.onprogress = (event) => {
             if (event.lengthComputable && progressCallback) {
                 const progress = (event.loaded / event.total) * 100;
@@ -492,9 +806,19 @@ async function uploadLargeFile(formData, progressCallback) {
         initForm.append('fileId', fileId);
         initForm.append('s3', 'true');
         
+        // Add authentication header for initialization request
+        const initHeaders = {};
+        if (window.replayHub && window.replayHub.auth && window.replayHub.auth.isAuthenticated()) {
+            const token = localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token');
+            if (token) {
+                initHeaders['Authorization'] = `Bearer ${token}`;
+            }
+        }
+        
         // Send initialization request
         const initResponse = await fetch(`${BASE_URL}/upload/init`, {
             method: 'POST',
+            headers: initHeaders,
             body: initForm
         });
         
@@ -523,6 +847,14 @@ async function uploadLargeFile(formData, progressCallback) {
                 
                 await new Promise((resolveChunk, rejectChunk) => {
                     xhr.open('POST', `${BASE_URL}/upload/chunk`, true);
+                    
+                    // Add JWT authentication header for chunk upload
+                    if (window.replayHub && window.replayHub.auth && window.replayHub.auth.isAuthenticated()) {
+                        const token = localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token');
+                        if (token) {
+                            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                        }
+                    }
                     
                     xhr.upload.onprogress = (event) => {
                         if (event.lengthComputable) {
@@ -574,8 +906,18 @@ async function uploadLargeFile(formData, progressCallback) {
         finalizeForm.append('uploader', uploader);
         if (players) finalizeForm.append('players', players);
         
+        // Add authentication header for finalization request
+        const finalizeHeaders = {};
+        if (window.replayHub && window.replayHub.auth && window.replayHub.auth.isAuthenticated()) {
+            const token = localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token');
+            if (token) {
+                finalizeHeaders['Authorization'] = `Bearer ${token}`;
+            }
+        }
+        
         const finalizeResponse = await fetch(`${BASE_URL}/upload/finalize`, {
             method: 'POST',
+            headers: finalizeHeaders,
             body: finalizeForm
         });
         
@@ -1105,6 +1447,12 @@ function initUploadModal() {
             event.preventDefault();
             console.log('Form submitted');
             
+            // Check authentication before processing upload
+            if (!currentUser.isLoggedIn) {
+                alert('Please log in to upload videos.');
+                return;
+            }
+            
             const titleInput = document.getElementById('video-title');
             const descriptionInput = document.getElementById('video-description');
             const uploaderInput = document.getElementById('video-uploader');
@@ -1196,6 +1544,12 @@ function initUploadModal() {
         bulkUploadForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             console.log('Bulk upload form submitted');
+            
+            // Check authentication before processing upload
+            if (!currentUser.isLoggedIn) {
+                alert('Please log in to upload videos.');
+                return;
+            }
             
             const uploaderInput = document.getElementById('bulk-video-uploader');
             

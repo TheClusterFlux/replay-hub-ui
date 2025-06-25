@@ -129,8 +129,15 @@ body {
   background-color: #0b7dda;
 }
 
-.upload-btn:hover {
+.upload-btn:hover:not(:disabled) {
   background-color: #0351b7;
+}
+
+.upload-btn:disabled {
+  background-color: #ccc;
+  color: #666;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 /* Profile button and dropdown */
@@ -937,6 +944,225 @@ textarea.form-control {
 }
 
 /* Dark mode */
+/* Authentication Modals */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+  background-color: #fefefe;
+  margin: 5% auto;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+  background-color: #007cba;
+  color: white;
+  padding: 1rem;
+  border-radius: 8px 8px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.close {
+  color: white;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.close:hover {
+  opacity: 0.7;
+}
+
+.modal form {
+  padding: 2rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.3s;
+  box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #007cba;
+  box-shadow: 0 0 0 2px rgba(0, 124, 186, 0.2);
+}
+
+.form-group small {
+  display: block;
+  margin-top: 0.25rem;
+  color: #666;
+  font-size: 0.875rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.form-actions button {
+  flex: 1;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  min-width: 120px;
+}
+
+.form-actions button[type="submit"] {
+  background-color: #007cba;
+  color: white;
+}
+
+.form-actions button[type="submit"]:hover {
+  background-color: #005c8a;
+}
+
+.form-actions button[type="button"] {
+  background-color: #6c757d;
+  color: white;
+}
+
+.form-actions button[type="button"]:hover {
+  background-color: #545b62;
+}
+
+/* Profile Avatar Preview */
+#profile-avatar-preview {
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+#profile-avatar-preview img {
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Auth Messages */
+.auth-message {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 1rem 1.5rem;
+  border-radius: 4px;
+  color: white;
+  font-weight: 500;
+  z-index: 10000;
+  max-width: 400px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  animation: slideIn 0.3s ease-out;
+}
+
+.auth-message.success {
+  background-color: #28a745;
+}
+
+.auth-message.error {
+  background-color: #dc3545;
+}
+
+.auth-message.info {
+  background-color: #17a2b8;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Enhanced Profile Dropdown for new auth system */
+.profile-dropdown .dropdown-menu {
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  min-width: 160px;
+  z-index: 1000;
+  display: none;
+}
+
+.profile-dropdown .dropdown-menu.show {
+  display: block;
+}
+
+.profile-dropdown .dropdown-item {
+  display: block;
+  padding: 0.75rem 1rem;
+  color: #333;
+  text-decoration: none;
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.3s;
+  cursor: pointer;
+}
+
+.profile-dropdown .dropdown-item:hover {
+  background-color: #f8f9fa;
+}
+
+.profile-dropdown .dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.profile-dropdown .dropdown-item i {
+  margin-right: 0.5rem;
+  width: 16px;
+  text-align: center;
+}
+
+.profile-dropdown hr {
+  margin: 0;
+  border: none;
+  border-top: 1px solid #eee;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --text-color: #ffffff;
@@ -945,5 +1171,44 @@ textarea.form-control {
     --bg-secondary-color: #212121;
     --border-color: #383838;
     --hover-color: #383838;
+  }
+
+  /* Dark theme for auth modals */
+  .modal-content {
+    background-color: #1e1e1e;
+    color: #ffffff;
+  }
+
+  .form-group label {
+    color: #ffffff;
+  }
+
+  .form-group input,
+  .form-group textarea {
+    background-color: #333;
+    color: #ffffff;
+    border-color: #555;
+  }
+
+  .form-group small {
+    color: #aaa;
+  }
+
+  .profile-dropdown .dropdown-menu {
+    background-color: #333;
+    border-color: #555;
+  }
+
+  .profile-dropdown .dropdown-item {
+    color: #ffffff;
+    border-bottom-color: #555;
+  }
+
+  .profile-dropdown .dropdown-item:hover {
+    background-color: #444;
+  }
+
+  .profile-dropdown hr {
+    border-top-color: #555;
   }
 }
