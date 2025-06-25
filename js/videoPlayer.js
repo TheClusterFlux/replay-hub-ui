@@ -323,17 +323,27 @@ window.replayHub = window.replayHub || {};
       videoElement.onerror = function(e) {
         console.error('🚫 Video Error Occurred');
         
-        // Check for specific decode errors
-        if (videoElement.error && videoElement.error.code === 3) {
-          console.error('❌ DECODE ERROR: Video file is corrupted or unsupported format');
-          
-          // Show specific error for corrupted video
+              // Check for specific decode errors  
+      if (videoElement.error && videoElement.error.code === 3) {
+        console.error('❌ DECODE ERROR: Video file is corrupted or unsupported format');
+        
+        // Analyze the video file headers before showing error
+        analyzeVideoFile(videoUrl).then(() => {
           const videoPlayer = document.getElementById('video-player');
           const videoEmbed = document.getElementById('video-embed');
-          
           showCorruptedVideoError(videoUrl, videoPlayer, videoEmbed);
-          return; // Don't try alternatives for corrupted videos
-        }
+        });
+        return; // Don't try alternatives for corrupted videos
+      }
+      
+      // Check for MIME type not supported errors
+      if (videoElement.error && videoElement.error.code === 4) {
+        console.error('❌ MIME TYPE ERROR: No supported format found');
+        
+        // Try one more approach with minimal MIME types
+        tryMinimalVideoSetup(videoUrl, videoElement);
+        return;
+      }
         
         logVideoElementState(videoElement, 'ERROR');
         
@@ -579,6 +589,126 @@ window.replayHub = window.replayHub || {};
       console.error('Error loading no-CORS video:', error);
       videoPlayer.innerHTML = errorMessage;
     }
+  }
+  
+  /**
+   * Analyze video file headers to get detailed information
+   * @param {string} videoUrl - The video URL to analyze
+   * @returns {Promise} - Analysis results
+   */
+  async function analyzeVideoFile(videoUrl) {
+    console.log('🔍 Analyzing video file headers...');
+    
+    try {
+      // Get the first few bytes of the file to analyze format
+      const response = await fetch(videoUrl, {
+        method: 'GET',
+        headers: {
+          'Range': 'bytes=0-100' // Get first 100 bytes
+        }
+      });
+      
+      if (response.ok) {
+        const buffer = await response.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        
+        // Check file signature
+        const signature = Array.from(bytes.slice(0, 20))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join(' ');
+        
+        console.log('📄 File signature (first 20 bytes):', signature);
+        
+        // Check for common video file signatures
+        const videoSignatures = {
+          mp4: ['00 00 00', 'ftyp'],
+          mov: ['00 00 00', 'ftyp', 'qt'],
+          avi: ['52 49 46 46'], // RIFF
+          webm: ['1a 45 df a3'], // EBML
+          flv: ['46 4c 56'], // FLV
+        };
+        
+        let detectedFormat = 'unknown';
+        const hexString = signature.toLowerCase();
+        
+        if (hexString.includes('66 74 79 70')) {
+          detectedFormat = 'MP4/MOV container';
+        } else if (hexString.startsWith('52 49 46 46')) {
+          detectedFormat = 'AVI container';
+        } else if (hexString.startsWith('1a 45 df a3')) {
+          detectedFormat = 'WebM container';
+        } else if (hexString.startsWith('46 4c 56')) {
+          detectedFormat = 'FLV container';
+        }
+        
+        console.log('🎬 Detected format from signature:', detectedFormat);
+        console.log('📊 File size from response:', response.headers.get('content-range'));
+        
+        // Additional analysis
+        if (detectedFormat === 'unknown') {
+          console.error('⚠️ Unrecognized file format - file may be corrupted or not a video');
+        }
+        
+      } else {
+        console.error('❌ Could not analyze file headers:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Error analyzing video file:', error);
+    }
+  }
+  
+  /**
+   * Try minimal video setup without any MIME type specifications
+   * @param {string} videoUrl - The video URL
+   * @param {HTMLElement} videoElement - The video element
+   */
+  function tryMinimalVideoSetup(videoUrl, videoElement) {
+    console.log('🔄 Trying minimal video setup...');
+    
+    // Clear everything and start fresh
+    videoElement.innerHTML = '';
+    videoElement.removeAttribute('src');
+    videoElement.removeAttribute('type');
+    
+    // Set src directly without any MIME type hints
+    videoElement.src = videoUrl;
+    
+    let hasLoaded = false;
+    
+    videoElement.onloadedmetadata = function() {
+      hasLoaded = true;
+      console.log('✅ Minimal setup worked!');
+      logVideoElementState(videoElement, 'MINIMAL_SETUP_SUCCESS');
+    };
+    
+    videoElement.onerror = function(e) {
+      if (!hasLoaded) {
+        console.error('❌ Minimal setup also failed');
+        console.error('🔍 This confirms the video file itself is the problem');
+        
+        // Show the corrupted video error
+        const videoPlayer = document.getElementById('video-player');
+        const videoEmbed = document.getElementById('video-embed');
+        showCorruptedVideoError(videoUrl, videoPlayer, videoEmbed);
+      }
+    };
+    
+    // Try to load
+    try {
+      videoElement.load();
+    } catch (error) {
+      console.error('❌ Error in minimal setup:', error);
+    }
+    
+    // Timeout if nothing happens
+    setTimeout(() => {
+      if (!hasLoaded && videoElement.readyState === 0) {
+        console.error('⏰ Minimal setup timeout - video definitely corrupted');
+        const videoPlayer = document.getElementById('video-player');
+        const videoEmbed = document.getElementById('video-embed');
+        showCorruptedVideoError(videoUrl, videoPlayer, videoEmbed);
+      }
+    }, 5000);
   }
   
   /**
@@ -1013,84 +1143,35 @@ window.replayHub = window.replayHub || {};
       detectedFormat = 'video/x-msvideo';
     }
     
-    // Create comprehensive source list with codec specifications
-    const sources = [];
+    // Simplified S3 video setup - try the most likely formats first
+    console.log('🔧 Setting up S3 video with simplified approach');
     
-    // MP4 with various codec specifications (most compatible)
-    if (detectedFormat === 'video/mp4' || videoType === 'video/mp4' || !detectedFormat) {
-      sources.push(
-        { src: videoUrl, type: 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"' },
-        { src: videoUrl, type: 'video/mp4; codecs="avc1.64001E, mp4a.40.2"' },
-        { src: videoUrl, type: 'video/mp4; codecs="mp4v.20.8, mp4a.40.2"' },
-        { src: videoUrl, type: 'video/mp4' }
-      );
-    }
+    // Start with the most basic approach - direct src assignment
+    // This often works better than multiple source elements
+    videoElement.src = videoUrl;
     
-    // WebM with codec specifications
-    if (detectedFormat === 'video/webm' || videoType === 'video/webm') {
-      sources.push(
-        { src: videoUrl, type: 'video/webm; codecs="vp8, vorbis"' },
-        { src: videoUrl, type: 'video/webm; codecs="vp9, vorbis"' },
-        { src: videoUrl, type: 'video/webm; codecs="vp9, opus"' },
-        { src: videoUrl, type: 'video/webm' }
-      );
-    }
+    // Only add a few essential source elements as backup
+    const essentialSources = [
+      { src: videoUrl, type: 'video/mp4' },
+      { src: videoUrl, type: 'video/*' },
+      { src: videoUrl, type: '' } // Let browser auto-detect
+    ];
     
-    // QuickTime/MOV formats
-    if (detectedFormat === 'video/quicktime' || videoType === 'video/quicktime') {
-      sources.push(
-        { src: videoUrl, type: 'video/quicktime' },
-        { src: videoUrl, type: 'video/mp4' } // MOV often works as MP4
-      );
-    }
-    
-    // AVI formats
-    if (detectedFormat === 'video/x-msvideo' || videoType === 'video/x-msvideo') {
-      sources.push(
-        { src: videoUrl, type: 'video/x-msvideo' },
-        { src: videoUrl, type: 'video/avi' },
-        { src: videoUrl, type: 'video/mp4' } // Sometimes AVI works as MP4
-      );
-    }
-    
-    // If no specific format detected, add common fallbacks
-    if (!detectedFormat || detectedFormat === 'video/mp4') {
-      sources.push(
-        { src: videoUrl, type: 'video/mp4; codecs="avc1.42E01E"' },
-        { src: videoUrl, type: 'video/mp4; codecs="mp4v.20.240"' }
-      );
-    }
-    
-    // Generic fallbacks (without codec specifications)
-    const genericTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/*', ''];
-    genericTypes.forEach(type => {
-      if (!sources.some(s => s.type === type)) {
-        sources.push({ src: videoUrl, type });
-      }
-    });
-    
-    // Remove duplicate sources
-    const uniqueSources = sources.filter((source, index, self) => 
-      index === self.findIndex(s => s.type === source.type)
-    );
-    
-    // Create source elements
-    uniqueSources.forEach((source, index) => {
+    essentialSources.forEach((source, index) => {
       const sourceElement = document.createElement('source');
       sourceElement.src = source.src;
       if (source.type) {
         sourceElement.type = source.type;
       }
       
-      // Add error handling for each source
       sourceElement.onerror = function(e) {
-        console.warn(`Source ${index + 1} failed (${source.type || 'no type'}):`, e);
+        console.warn(`Source ${index + 1} failed (${source.type || 'auto-detect'})`);
       };
       
       videoElement.appendChild(sourceElement);
     });
     
-    console.log('Created S3 video sources:', uniqueSources);
+    console.log('✅ Created simplified sources for S3 video');
     
     // Set the src attribute directly as primary fallback (most important)
     videoElement.src = videoUrl;
@@ -1322,7 +1403,8 @@ window.replayHub = window.replayHub || {};
           ratio: '16:9',
           loadSprite: true,
           iconUrl: 'https://cdn.plyr.io/3.7.8/plyr.svg',
-          blankVideo: 'https://cdn.plyr.io/static/blank.mp4',
+          // Remove blank video fallback - it's confusing when debugging
+          blankVideo: '',
           // Conditionally set crossorigin based on whether we're dealing with CORS issues
           crossorigin: !isS3Url(videoElement.src || videoElement.currentSrc) || 
                       (videoElement.getAttribute('crossorigin') !== null),
