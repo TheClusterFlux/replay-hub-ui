@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Debug Tool - Replay Hub</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .video-test {
+            width: 100%;
+            max-width: 800px;
+            margin: 20px 0;
+        }
+        .log {
+            background: #000;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        input[type="url"] {
+            width: 70%;
+            min-width: 300px;
+        }
+        button {
+            background: #007cba;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #005a87;
+        }
+        .error {
+            color: #ff6b6b;
+            background: #ffe0e0;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success {
+            color: #51cf66;
+            background: #e6ffe6;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            color: #ffa500;
+            background: #fff4e0;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Video Debug Tool</h1>
+        <p>This tool helps debug video playback issues, especially with S3-hosted videos.</p>
+        
+        <div>
+            <input type="url" id="video-url" placeholder="Enter video URL to test..." />
+            <button onclick="testVideo()">Test Video</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+        
+        <div id="results"></div>
+        
+        <video id="test-video" class="video-test" controls style="display: none;">
+            Your browser doesn't support video playback.
+        </video>
+        
+        <div class="log" id="debug-log">Debug log will appear here...</div>
+    </div>
+
+    <script>
+        const log = document.getElementById('debug-log');
+        const results = document.getElementById('results');
+        const video = document.getElementById('test-video');
+        
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            log.textContent += logEntry;
+            log.scrollTop = log.scrollHeight;
+            
+            console.log(message);
+        }
+        
+        function clearLog() {
+            log.textContent = 'Debug log cleared...\n';
+            results.innerHTML = '';
+            video.style.display = 'none';
+        }
+        
+        function showResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = message;
+            results.appendChild(div);
+        }
+        
+        function isS3Url(url) {
+            return url.includes('amazonaws.com') || 
+                   url.includes('s3.') || 
+                   url.includes('.s3.') ||
+                   url.includes('s3-');
+        }
+        
+        function detectVideoType(url) {
+            const urlLower = url.toLowerCase();
+            
+            if (urlLower.includes('.m3u8')) {
+                return 'application/vnd.apple.mpegurl';
+            }
+            
+            let extension = '';
+            try {
+                const urlObj = new URL(url);
+                const pathname = urlObj.pathname;
+                const parts = pathname.split('.');
+                if (parts.length > 1) {
+                    extension = parts.pop().toLowerCase();
+                }
+            } catch (e) {
+                const parts = url.split('.');
+                if (parts.length > 1) {
+                    extension = parts.pop().toLowerCase().split('?')[0];
+                }
+            }
+            
+            const mimeTypes = {
+                'mp4': 'video/mp4',
+                'webm': 'video/webm',
+                'mov': 'video/quicktime',
+                'avi': 'video/x-msvideo'
+            };
+            
+            return mimeTypes[extension] || 'video/mp4';
+        }
+        
+        async function testUrlAccess(url) {
+            addLog(`Testing URL accessibility: ${url}`);
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'HEAD',
+                    mode: 'cors'
+                });
+                
+                const headers = {};
+                for (const [key, value] of response.headers.entries()) {
+                    headers[key] = value;
+                }
+                
+                addLog(`Response status: ${response.status} ${response.statusText}`);
+                addLog(`Headers: ${JSON.stringify(headers, null, 2)}`);
+                
+                if (response.ok) {
+                    showResult('✅ URL is accessible', 'success');
+                    
+                    const contentType = response.headers.get('content-type');
+                    if (contentType) {
+                        if (contentType.startsWith('video/')) {
+                            showResult(`✅ Content-Type looks good: ${contentType}`, 'success');
+                        } else {
+                            showResult(`⚠️ Content-Type might be wrong: ${contentType}`, 'warning');
+                            addLog(`WARNING: Content-Type is "${contentType}" but should be video/* for video files`);
+                        }
+                    } else {
+                        showResult('⚠️ No Content-Type header found', 'warning');
+                    }
+                    
+                    const acceptRanges = response.headers.get('accept-ranges');
+                    if (acceptRanges === 'bytes') {
+                        showResult('✅ Range requests supported (good for video)', 'success');
+                    } else {
+                        showResult('⚠️ Range requests may not be supported', 'warning');
+                    }
+                    
+                } else {
+                    showResult(`❌ URL returned error: ${response.status}`, 'error');
+                }
+                
+                return response.ok;
+                
+            } catch (error) {
+                addLog(`ERROR: ${error.message}`);
+                showResult(`❌ Network error: ${error.message}`, 'error');
+                
+                if (error.message.includes('CORS')) {
+                    showResult('💡 CORS error detected. Video might still work in video element.', 'warning');
+                }
+                
+                return false;
+            }
+        }
+        
+        async function testVideoElement(url) {
+            addLog('Testing video element playback...');
+            
+            video.style.display = 'block';
+            video.innerHTML = '';
+            
+            const videoType = detectVideoType(url);
+            addLog(`Detected video type: ${videoType}`);
+            
+            // Create multiple sources for better compatibility
+            const sources = [
+                { src: url, type: videoType },
+                { src: url, type: 'video/mp4' },
+                { src: url, type: 'video/webm' },
+                { src: url, type: 'video/*' }
+            ];
+            
+            // Remove duplicates
+            const uniqueSources = sources.filter((source, index, self) => 
+                index === self.findIndex(s => s.type === source.type)
+            );
+            
+            uniqueSources.forEach((source, index) => {
+                const sourceElement = document.createElement('source');
+                sourceElement.src = source.src;
+                sourceElement.type = source.type;
+                
+                sourceElement.onerror = function(e) {
+                    addLog(`Source ${index + 1} failed (${source.type})`);
+                };
+                
+                video.appendChild(sourceElement);
+            });
+            
+            // Also set src directly
+            video.src = url;
+            
+            video.onerror = function(e) {
+                const networkStates = {
+                    0: 'NETWORK_EMPTY',
+                    1: 'NETWORK_IDLE', 
+                    2: 'NETWORK_LOADING',
+                    3: 'NETWORK_NO_SOURCE'
+                };
+                
+                const readyStates = {
+                    0: 'HAVE_NOTHING',
+                    1: 'HAVE_METADATA',
+                    2: 'HAVE_CURRENT_DATA',
+                    3: 'HAVE_FUTURE_DATA',
+                    4: 'HAVE_ENOUGH_DATA'
+                };
+                
+                addLog('❌ Video error occurred');
+                addLog(`Network state: ${networkStates[video.networkState]} (${video.networkState})`);
+                addLog(`Ready state: ${readyStates[video.readyState]} (${video.readyState})`);
+                
+                if (video.error) {
+                    const errorCodes = {
+                        1: 'MEDIA_ERR_ABORTED - The video download was aborted',
+                        2: 'MEDIA_ERR_NETWORK - A network error occurred',
+                        3: 'MEDIA_ERR_DECODE - The video is corrupted or not supported',
+                        4: 'MEDIA_ERR_SRC_NOT_SUPPORTED - No video with supported format found'
+                    };
+                    addLog(`Error code: ${errorCodes[video.error.code]} (${video.error.code})`);
+                    showResult(`❌ Video Error: ${errorCodes[video.error.code]}`, 'error');
+                } else {
+                    showResult('❌ Unknown video error', 'error');
+                }
+            };
+            
+            video.onloadedmetadata = function() {
+                addLog('✅ Video metadata loaded successfully');
+                addLog(`Duration: ${video.duration} seconds`);
+                addLog(`Dimensions: ${video.videoWidth}x${video.videoHeight}`);
+                showResult('✅ Video metadata loaded successfully!', 'success');
+            };
+            
+            video.onloadstart = function() {
+                addLog('📡 Video load started');
+            };
+            
+            video.oncanplay = function() {
+                addLog('✅ Video can start playing');
+                showResult('✅ Video ready to play!', 'success');
+            };
+            
+            video.onprogress = function() {
+                if (video.buffered.length > 0) {
+                    const buffered = video.buffered.end(0);
+                    addLog(`📊 Buffered: ${buffered.toFixed(2)} seconds`);
+                }
+            };
+            
+            // Try to load the video
+            video.load();
+        }
+        
+        async function testVideo() {
+            const url = document.getElementById('video-url').value.trim();
+            
+            if (!url) {
+                alert('Please enter a video URL');
+                return;
+            }
+            
+            clearLog();
+            addLog('🔍 Starting video diagnostics...');
+            addLog(`URL: ${url}`);
+            
+            if (isS3Url(url)) {
+                addLog('🪣 S3 URL detected');
+                showResult('📦 S3 URL detected', 'warning');
+            } else {
+                addLog('🌐 Regular URL detected');
+            }
+            
+            // Test URL accessibility
+            await testUrlAccess(url);
+            
+            // Test video element
+            await testVideoElement(url);
+            
+            addLog('🏁 Diagnostics complete');
+        }
+        
+        // Load URL from query parameter if present
+        window.addEventListener('load', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const testUrl = urlParams.get('url');
+            if (testUrl) {
+                document.getElementById('video-url').value = testUrl;
+                addLog('URL loaded from query parameter');
+            }
+        });
+    </script>
+</body>
+</html>

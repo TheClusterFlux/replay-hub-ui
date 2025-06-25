@@ -63,9 +63,9 @@ function formatVideoTitle(filename) {
 
 /**
  * Detect the MIME type of a video based on its URL
- * Enhanced for better S3 and streaming compatibility
+ * Enhanced for better S3 and streaming compatibility with codec specifications
  * @param {string} url - The URL of the video
- * @returns {string} - The MIME type
+ * @returns {string} - The MIME type with codec specifications when possible
  */
 function detectVideoType(url) {
   if (!url) return 'video/mp4'; // Default
@@ -75,12 +75,15 @@ function detectVideoType(url) {
     
     // Check for streaming formats first
     if (lowercaseUrl.includes('.m3u8')) {
-      return 'application/vnd.apple.mpegurl'; // HLS stream (updated MIME type)
+      return 'application/vnd.apple.mpegurl'; // HLS stream
     }
     
     if (lowercaseUrl.includes('.mpd')) {
       return 'application/dash+xml'; // DASH stream
     }
+    
+    // For S3 URLs, be more aggressive about format detection
+    const isS3 = url.includes('amazonaws.com') || url.includes('s3.') || url.includes('.s3.') || url.includes('s3-');
     
     // Extract file extension, handling query parameters and S3 URLs
     let extension = '';
@@ -95,15 +98,30 @@ function detectVideoType(url) {
       // Fallback to simple extension extraction
       const parts = url.split('.');
       if (parts.length > 1) {
-        extension = parts.pop().toLowerCase().split('?')[0];
+        extension = parts.pop().toLowerCase().split('?')[0].split('#')[0];
       }
     }
     
-    // Comprehensive MIME type mapping
+    // If no extension found, try to detect from URL patterns (especially for S3)
+    if (!extension) {
+      if (lowercaseUrl.includes('mp4') || lowercaseUrl.includes('.mp4')) extension = 'mp4';
+      else if (lowercaseUrl.includes('webm') || lowercaseUrl.includes('.webm')) extension = 'webm';
+      else if (lowercaseUrl.includes('mov') || lowercaseUrl.includes('.mov')) extension = 'mov';
+      else if (lowercaseUrl.includes('avi') || lowercaseUrl.includes('.avi')) extension = 'avi';
+      else if (lowercaseUrl.includes('mkv') || lowercaseUrl.includes('.mkv')) extension = 'mkv';
+      else if (lowercaseUrl.includes('flv') || lowercaseUrl.includes('.flv')) extension = 'flv';
+    }
+    
+    // Comprehensive MIME type mapping with codec specifications for common formats
     const mimeTypes = {
-      'mp4': 'video/mp4',
-      'm4v': 'video/mp4',
-      'webm': 'video/webm',
+      // MP4 variants (most common) - return with codec specification for better compatibility
+      'mp4': 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"',
+      'm4v': 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"',
+      
+      // WebM variants
+      'webm': 'video/webm; codecs="vp8, vorbis"',
+      
+      // Other formats (without codec specifications as they're less standardized)
       'ogv': 'video/ogg',
       'ogg': 'video/ogg',
       'mov': 'video/quicktime',
@@ -122,10 +140,19 @@ function detectVideoType(url) {
       'vob': 'video/dvd'
     };
     
-    return mimeTypes[extension] || 'video/mp4';
+    const detectedType = mimeTypes[extension];
+    if (detectedType) {
+      console.log(`Detected video type: ${detectedType} (from extension: ${extension})`);
+      return detectedType;
+    }
+    
+    // Default fallback with codec specification for maximum compatibility
+    console.log('No specific format detected, defaulting to MP4 with codecs');
+    return 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"';
+    
   } catch (e) {
     console.warn('Error detecting video type:', e);
-    return 'video/mp4'; // Default to mp4
+    return 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"'; // Default with codecs
   }
 }
 
