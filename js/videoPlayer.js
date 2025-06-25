@@ -25,7 +25,7 @@ window.replayHub = window.replayHub || {};
    * @param {string} context - Context label for the log
    */
   function logVideoElementState(videoElement, context = 'DEBUG') {
-    // Only log errors and important state changes
+    // Only log errors - skip success messages to reduce console noise
     if (context === 'ERROR' || context.includes('FAILED') || videoElement.error) {
       const errorCodes = {
         1: 'MEDIA_ERR_ABORTED - The video download was aborted',
@@ -44,10 +44,8 @@ window.replayHub = window.replayHub || {};
         console.error('Error Message:', videoElement.error.message);
       }
       console.groupEnd();
-    } else if (context.includes('SUCCESS')) {
-      console.log(`✅ Video Success [${context}]: ${videoElement.videoWidth}x${videoElement.videoHeight}, ${videoElement.duration}s`);
     }
-    // Skip other logging to reduce noise
+    // Skip all success logging to reduce console noise
   }
   /**
    * Test video URL accessibility before attempting to play
@@ -56,8 +54,6 @@ window.replayHub = window.replayHub || {};
    */
   async function testVideoAccessibility(videoUrl) {
     try {
-      console.log('Testing video URL accessibility:', videoUrl);
-      
       const response = await fetch(videoUrl, {
         method: 'HEAD',
         mode: 'cors',
@@ -66,25 +62,9 @@ window.replayHub = window.replayHub || {};
         }
       });
       
-      console.log('Video URL test response:', {
-        status: response.status,
-        contentType: response.headers.get('content-type'),
-        contentLength: response.headers.get('content-length'),
-        acceptRanges: response.headers.get('accept-ranges'),
-        cacheControl: response.headers.get('cache-control'),
-        etag: response.headers.get('etag'),
-        lastModified: response.headers.get('last-modified'),
-        corsHeaders: {
-          'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
-          'access-control-allow-methods': response.headers.get('access-control-allow-methods'),
-          'access-control-allow-headers': response.headers.get('access-control-allow-headers')
-        }
-      });
-      
       // Check if S3 returned a proper Content-Type
       const contentType = response.headers.get('content-type');
       if (isS3Url(videoUrl)) {
-        console.log('S3 Content-Type detected:', contentType);
         
         if (!contentType) {
           console.error('❌ No Content-Type header found on S3 object');
@@ -171,8 +151,7 @@ window.replayHub = window.replayHub || {};
       return;
     }
     
-    console.log('Initializing video player with URL:', videoUrl);
-      // Clean up any existing player
+    // Clean up any existing player
     cleanupPlayer();
     
     // Ensure video URL is properly encoded but preserve S3 signatures
@@ -180,7 +159,6 @@ window.replayHub = window.replayHub || {};
     
     // For S3 URLs, test accessibility and handle CORS issues
     if (isS3Url(processedUrl)) {
-      console.log('S3 URL detected, testing accessibility...');
       try {
         const accessResult = await testVideoAccessibility(processedUrl);
         if (accessResult.corsError) {
@@ -211,8 +189,6 @@ window.replayHub = window.replayHub || {};
       // Check if this is an HLS stream
       const isHlsStream = processedUrl.toLowerCase().includes('.m3u8');
       const videoType = detectVideoType(processedUrl);
-      
-      console.log('Video type detected:', videoType, 'HLS:', isHlsStream);
       
       // Show video player, hide embed
       videoPlayer.style.display = 'block';
@@ -292,9 +268,6 @@ window.replayHub = window.replayHub || {};
    */
   function initDirectPlayer(videoElement, videoUrl, videoType) {
     try {
-      console.log('Setting up direct player with URL:', videoUrl);
-      console.log('Detected video type:', videoType);
-      
       // Clear any existing content and reset video element
       videoElement.innerHTML = '';
       videoElement.removeAttribute('src');
@@ -313,7 +286,6 @@ window.replayHub = window.replayHub || {};
       
       // Try multiple approaches for S3 compatibility
       if (isS3Url(videoUrl)) {
-        console.log('Detected S3 URL, using S3-optimized approach');
         setupS3Video(videoElement, videoUrl, videoType);
       } else {
         // Regular video setup
@@ -352,12 +324,12 @@ window.replayHub = window.replayHub || {};
       };
       
       videoElement.onloadedmetadata = function() {
-        console.log('✅ Video metadata loaded successfully');
+        // Video loaded successfully - no need to log this
         logVideoElementState(videoElement, 'METADATA_LOADED_SUCCESS');
       };
       
       videoElement.oncanplay = function() {
-        console.log('✅ Video ready to play');
+        // Video ready to play - no need to log this  
         logVideoElementState(videoElement, 'CAN_PLAY_SUCCESS');
       };
       
@@ -1126,8 +1098,6 @@ window.replayHub = window.replayHub || {};
    * @param {string} videoType - The MIME type
    */
   function setupS3Video(videoElement, videoUrl, videoType) {
-    console.log('Setting up S3 video with detected type:', videoType);
-    
     // For S3 URLs, try to detect the format from the URL more accurately
     const urlLower = videoUrl.toLowerCase();
     let detectedFormat = null;
@@ -1144,8 +1114,6 @@ window.replayHub = window.replayHub || {};
     }
     
     // Simplified S3 video setup - try the most likely formats first
-    console.log('🔧 Setting up S3 video with simplified approach');
-    
     // Start with the most basic approach - direct src assignment
     // This often works better than multiple source elements
     videoElement.src = videoUrl;
@@ -1165,13 +1133,12 @@ window.replayHub = window.replayHub || {};
       }
       
       sourceElement.onerror = function(e) {
-        console.warn(`Source ${index + 1} failed (${source.type || 'auto-detect'})`);
+        // Only log if multiple sources fail
+        if (index > 1) console.warn(`Multiple video sources failed`);
       };
       
       videoElement.appendChild(sourceElement);
     });
-    
-    console.log('✅ Created simplified sources for S3 video');
     
     // Set the src attribute directly as primary fallback (most important)
     videoElement.src = videoUrl;
@@ -1423,7 +1390,7 @@ window.replayHub = window.replayHub || {};
         
         // Add essential event listeners
         currentPlayer.on('ready', () => {
-          console.log('✅ Plyr player ready');
+          // Player ready - no logging needed
         });
         
         currentPlayer.on('error', (event) => {
@@ -1436,9 +1403,8 @@ window.replayHub = window.replayHub || {};
           });
         });
         
-        // Remove excessive progress logging
         currentPlayer.on('loadedmetadata', () => {
-          console.log('✅ Plyr: Video metadata loaded');
+          // Metadata loaded - no logging needed
         });
         
         // Handle media errors specifically
@@ -1566,6 +1532,5 @@ window.replayHub = window.replayHub || {};
   // Clean up on page unload
   window.addEventListener('beforeunload', cleanupPlayer);
   
-  // Signal that this module is ready
-  console.log('VideoPlayer module initialized with Plyr');
+  // VideoPlayer module ready
 })();

@@ -142,7 +142,7 @@ function detectVideoType(url) {
     
     const detectedType = mimeTypes[extension];
     if (detectedType) {
-      console.log(`Detected video type: ${detectedType} (from extension: ${extension})`);
+      // Video type detected successfully
       return detectedType;
     }
     
@@ -209,5 +209,4 @@ if (window.currentUser && !window.replayHub.currentUser) {
   window.replayHub.currentUser = window.currentUser;
 }
 
-// Signal that this module is ready
-console.log('Utils module initialized');
+  // Utils module ready

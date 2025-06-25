@@ -331,6 +331,5 @@ window.replayHub = window.replayHub || {};
     updateVideoUI
   };
 
-  // Signal that this module is ready
-  console.log('VideoMetadata module initialized');
+  // VideoMetadata module ready
 })();

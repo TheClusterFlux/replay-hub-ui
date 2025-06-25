@@ -686,6 +686,5 @@ window.replayHub = window.replayHub || {};
     initReactions
   };
 
-  // Signal that this module is ready
-  console.log('VideoComments module initialized');
+  // VideoComments module ready
 })();
