@@ -73,7 +73,7 @@ window.replayHub = window.replayHub || {};
   /**
    * Test video URL accessibility before attempting to play
    * @param {string} videoUrl - The video URL to test
-   * @returns {Promise<{accessible: boolean, corsError: boolean, suggestedFix: string, contentTypeIssue?: boolean}>} - Accessibility results
+   * @returns {Promise<{accessible: boolean, corsError: boolean, suggestedFix: string, contentTypeIssue?: boolean, networkError?: boolean}>} - Accessibility results
    */
   async function testVideoAccessibility(videoUrl) {
     try {
@@ -148,6 +148,18 @@ window.replayHub = window.replayHub || {};
         };
       }
       
+      // Check for network errors (file not found, connectivity issues)
+      if (error.message && (error.message.includes('NetworkError') || error.message.includes('Failed to fetch'))) {
+        console.error('🌐 Network Error: Cannot reach the video URL');
+        return {
+          accessible: false,
+          corsError: false,
+          suggestedFix: 'Video file may not exist at this URL or there are network connectivity issues',
+          contentTypeIssue: false,
+          networkError: true
+        };
+      }
+      
       // For other errors, don't fail completely
       return { accessible: true, corsError: false, suggestedFix: '', contentTypeIssue: false };
     }
@@ -172,6 +184,14 @@ window.replayHub = window.replayHub || {};
       return;
     }
     
+    // Enhanced URL validation
+    const urlValidation = validateVideoUrl(videoUrl);
+    if (!urlValidation.isValid) {
+      console.error('❌ URL Validation Failed:', urlValidation.error);
+      showError(`Invalid video URL: ${urlValidation.error}`);
+      return;
+    }
+    
     console.log('Initializing video player with URL:', videoUrl);
       // Clean up any existing player
     cleanupPlayer();
@@ -190,6 +210,11 @@ window.replayHub = window.replayHub || {};
           
           // Try alternative approaches for CORS-blocked S3 videos
           return initS3VideoWithCorsWorkaround(processedUrl, videoPlayer, videoEmbed);
+        } else if (accessResult.networkError) {
+          console.error('🌐 Network Error:', accessResult.suggestedFix);
+          
+          // Try alternative approaches for network errors
+          return initVideoWithNetworkErrorHandling(processedUrl, videoPlayer, videoEmbed, accessResult.suggestedFix);
         } else if (accessResult.contentTypeIssue) {
           console.error('📝 Content-Type Issue:', accessResult.suggestedFix);
           
@@ -373,6 +398,63 @@ window.replayHub = window.replayHub || {};
   }
   
   /**
+   * Validate video URL for common issues
+   * @param {string} url - The video URL to validate
+   * @returns {{isValid: boolean, error?: string}} - Validation result
+   */
+  function validateVideoUrl(url) {
+    try {
+      // Test if it's a valid URL
+      const urlObj = new URL(url);
+      
+      // Check protocol
+      if (!['http:', 'https:'].includes(urlObj.protocol)) {
+        return { isValid: false, error: 'URL must use http or https protocol' };
+      }
+      
+      // Check if hostname exists
+      if (!urlObj.hostname) {
+        return { isValid: false, error: 'URL must have a valid hostname' };
+      }
+      
+      // For S3 URLs, do additional validation
+      if (isS3Url(url)) {
+        // Check if it looks like a valid S3 URL structure
+        if (!urlObj.pathname || urlObj.pathname === '/') {
+          return { isValid: false, error: 'S3 URL must include object key (filename)' };
+        }
+        
+        // Check for common S3 URL patterns
+        const s3Patterns = [
+          /^https:\/\/[\w-]+\.s3\.[\w-]+\.amazonaws\.com\/.+/,
+          /^https:\/\/s3\.[\w-]+\.amazonaws\.com\/[\w-]+\/.+/,
+          /^https:\/\/[\w-]+\.s3\.amazonaws\.com\/.+/
+        ];
+        
+        const isValidS3Pattern = s3Patterns.some(pattern => pattern.test(url));
+        if (!isValidS3Pattern) {
+          console.warn('⚠️ S3 URL format may be non-standard, but attempting to load anyway');
+        }
+      }
+      
+      // Check if URL ends with a likely video extension
+      const videoExtensions = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.m3u8', '.mpd'];
+      const hasVideoExtension = videoExtensions.some(ext => 
+        urlObj.pathname.toLowerCase().includes(ext)
+      );
+      
+      if (!hasVideoExtension) {
+        console.warn('⚠️ URL does not appear to end with a video file extension');
+        // Don't fail validation, just warn
+      }
+      
+      return { isValid: true };
+    } catch (error) {
+      return { isValid: false, error: `Invalid URL format: ${error.message}` };
+    }
+  }
+  
+  /**
    * Handle S3 videos with CORS issues using alternative approaches
    * @param {string} videoUrl - The S3 video URL
    * @param {HTMLElement} videoPlayer - The video player element
@@ -515,6 +597,159 @@ window.replayHub = window.replayHub || {};
       console.error('Error loading no-CORS video:', error);
       videoPlayer.innerHTML = errorMessage;
     }
+  }
+  
+  /**
+   * Handle videos with network errors (404, connectivity issues, etc.)
+   * @param {string} videoUrl - The video URL
+   * @param {HTMLElement} videoPlayer - The video player element
+   * @param {HTMLElement} videoEmbed - The iframe element
+   * @param {string} issue - Description of the network issue
+   */
+  function initVideoWithNetworkErrorHandling(videoUrl, videoPlayer, videoEmbed, issue) {
+    console.log('🔧 Attempting network error workaround...');
+    
+    // Show detailed error message with troubleshooting steps
+    const errorMessage = `
+      <div class="network-error-message" style="
+        background: #ffe6e6;
+        border: 2px solid #ff4444;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+        text-align: center;
+      ">
+        <h3 style="color: #cc0000; margin-top: 0;">🌐 Network Error</h3>
+        <p><strong>${issue}</strong></p>
+        <p>Cannot reach the video at this URL.</p>
+        
+        <div style="background: #f5f5f5; padding: 15px; border-radius: 4px; margin: 15px 0; text-align: left;">
+          <h4>📋 Troubleshooting Steps:</h4>
+          <ol>
+            <li><strong>Check the URL:</strong><br/>
+                <code style="background: #eee; padding: 2px 4px; border-radius: 2px; word-break: break-all;">${videoUrl}</code></li>
+            <li><strong>Verify the file exists in S3:</strong><br/>
+                Go to AWS S3 Console and check if the file exists at this location</li>
+            <li><strong>Check S3 bucket permissions:</strong><br/>
+                The object might not be publicly readable</li>
+            <li><strong>Verify your internet connection</strong></li>
+            <li><strong>Check if the S3 URL has expired</strong> (if using presigned URLs)</li>
+          </ol>
+        </div>
+        
+        <details style="margin-top: 15px; text-align: left;">
+          <summary style="cursor: pointer; font-weight: bold;">🔧 For Developers</summary>
+          <div style="margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 4px;">
+            <p><strong>Make S3 object public:</strong></p>
+            <pre style="background: #333; color: #fff; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px;">aws s3api put-object-acl --bucket your-bucket --key ${videoUrl.split('/').pop()} --acl public-read</pre>
+            <p><strong>Or check if object exists:</strong></p>
+            <pre style="background: #333; color: #fff; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px;">aws s3 ls s3://your-bucket/${videoUrl.split('/').pop()}</pre>
+          </div>
+        </details>
+        
+        <div style="margin-top: 15px;">
+          <button onclick="window.location.reload()" style="
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+          ">Retry</button>
+          <button onclick="testVideoUrlInNewTab('${videoUrl}')" style="
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+          ">Test URL in New Tab</button>
+        </div>
+      </div>
+      
+      <script>
+        function testVideoUrlInNewTab(url) {
+          window.open(url, '_blank');
+        }
+      </script>
+    `;
+    
+    // Try some last-ditch efforts to load the video
+    console.log('🔄 Trying direct video loading despite network errors...');
+    
+    // Clear and setup video element
+    videoPlayer.innerHTML = '';
+    videoPlayer.style.display = 'block';
+    videoEmbed.style.display = 'none';
+    
+    // Create video element with minimal configuration
+    const videoElement = document.createElement('video');
+    videoElement.id = 'video-player';
+    videoElement.className = 'custom-video-player';
+    videoElement.setAttribute('controls', 'true');
+    videoElement.setAttribute('preload', 'none'); // Don't preload if there are network issues
+    videoElement.setAttribute('playsinline', 'true');
+    
+    // Try direct src assignment (sometimes works when fetch() fails)
+    videoElement.src = videoUrl;
+    
+    let hasTriedLoading = false;
+    
+    // Add event handlers
+    videoElement.onloadedmetadata = function() {
+      console.log('✅ Direct loading worked despite network error!');
+      logVideoElementState(videoElement, 'NETWORK_ERROR_RECOVERY_SUCCESS');
+      
+      // Try to initialize Plyr
+      if (window.Plyr) {
+        try {
+          currentPlayer = new Plyr(videoElement, {
+            controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'fullscreen'],
+            crossorigin: false
+          });
+          console.log('Plyr initialized despite network error');
+        } catch (e) {
+          console.warn('Plyr initialization failed:', e);
+        }
+      }
+    };
+    
+    videoElement.onerror = function(e) {
+      console.error('❌ Direct loading also failed');
+      logVideoElementState(videoElement, 'NETWORK_ERROR_RECOVERY_FAILED');
+      
+      if (!hasTriedLoading) {
+        hasTriedLoading = true;
+        console.log('🔄 Trying to load video anyway...');
+        try {
+          videoElement.load();
+        } catch (loadError) {
+          console.error('Load attempt failed:', loadError);
+          // Show error message
+          videoPlayer.innerHTML = errorMessage;
+        }
+      } else {
+        // Show error message as final fallback
+        videoPlayer.innerHTML = errorMessage;
+      }
+    };
+    
+    videoElement.oncanplay = function() {
+      console.log('✅ Video recovered and can play!');
+    };
+    
+    // Add video element to player
+    videoPlayer.appendChild(videoElement);
+    
+    // Set a timeout to show error message if video doesn't load
+    setTimeout(() => {
+      if (videoElement.readyState === 0) {
+        console.error('⏰ Video loading timeout - showing error message');
+        videoPlayer.innerHTML = errorMessage;
+      }
+    }, 10000); // 10 second timeout
   }
   
   /**

@@ -34,29 +34,135 @@ function initVideoPage() {
 async function initializeVideoFromId(videoId) {
   try {
     console.log('Fetching video metadata for ID:', videoId);
+    console.log('Using BASE_URL:', window.BASE_URL);
     
-    // Fetch video metadata
-    const response = await fetch(`${window.BASE_URL}/metadata/${videoId}`);
+    const metadataUrl = `${window.BASE_URL}/metadata/${videoId}`;
+    console.log('Fetching from URL:', metadataUrl);
+    
+    // Fetch video metadata with detailed error handling
+    const response = await fetch(metadataUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('Metadata fetch response:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      url: response.url
+    });
+    
     if (!response.ok) {
-      throw new Error(`Failed to fetch video: ${response.status}`);
+      if (response.status === 404) {
+        throw new Error(`Video with ID "${videoId}" not found in database`);
+      } else if (response.status === 500) {
+        throw new Error(`Server error (${response.status}): Backend service may be down`);
+      } else {
+        throw new Error(`Failed to fetch video metadata: ${response.status} ${response.statusText}`);
+      }
     }
     
     const videoData = await response.json();
-    if (!videoData.s3_url) {
-      throw new Error('Video has no URL');
+    console.log('Video metadata fetched:', videoData);
+    
+    if (!videoData) {
+      throw new Error('No video data returned from server');
     }
     
-    console.log('Video metadata fetched:', videoData);
+    if (!videoData.s3_url) {
+      throw new Error('Video metadata is missing S3 URL');
+    }
     
     // Initialize with the fetched s3_url and full video data
     initializeVideoUI(videoData.s3_url, videoId, videoData);
     
   } catch (error) {
     console.error('Error fetching video metadata:', error);
+    
+    let errorMessage = 'Video not found or failed to load';
+    let detailedError = '';
+    
+    // Provide more specific error messages
+    if (error.message && error.message.includes('NetworkError')) {
+      errorMessage = 'Cannot connect to video service';
+      detailedError = `
+        <div style="background: #f5f5f5; padding: 15px; border-radius: 4px; margin: 15px 0; text-align: left;">
+          <h4>🌐 Connection Issue</h4>
+          <p><strong>Cannot reach the backend service.</strong></p>
+          <p>Attempted URL: <code>${window.BASE_URL}/metadata/${videoId}</code></p>
+          <h5>Possible causes:</h5>
+          <ul>
+            <li>Backend service is not running</li>
+            <li>Network connectivity issues</li>
+            <li>Incorrect BASE_URL configuration</li>
+            <li>Firewall blocking the connection</li>
+          </ul>
+        </div>
+      `;
+    } else if (error.message && error.message.includes('not found')) {
+      errorMessage = 'Video not found';
+      detailedError = `
+        <div style="background: #f5f5f5; padding: 15px; border-radius: 4px; margin: 15px 0; text-align: left;">
+          <h4>📹 Video Not Found</h4>
+          <p>Video ID "<code>${videoId}</code>" does not exist in the database.</p>
+          <p>This could mean:</p>
+          <ul>
+            <li>The video was deleted</li>
+            <li>The video ID is incorrect</li>
+            <li>The database is not properly synchronized</li>
+          </ul>
+        </div>
+      `;
+    } else if (error.message && error.message.includes('Server error')) {
+      errorMessage = 'Server error';
+      detailedError = `
+        <div style="background: #f5f5f5; padding: 15px; border-radius: 4px; margin: 15px 0; text-align: left;">
+          <h4>🔧 Server Error</h4>
+          <p><strong>The backend service encountered an error.</strong></p>
+          <p>This usually means there's an issue with the server configuration or database connection.</p>
+        </div>
+      `;
+    }
+    
+    // Show enhanced error message
     if (window.replayHub && window.replayHub.utils) {
-      window.replayHub.utils.showError('Video not found or failed to load');
+      const main = document.querySelector('main') || document.querySelector('.video-container');
+      if (main && detailedError) {
+        main.innerHTML = `
+          <div class="error-message">
+            <h2>Error</h2>
+            <p>${errorMessage}</p>
+            ${detailedError}
+            <div style="margin-top: 20px;">
+              <button onclick="window.location.reload()" style="
+                background: #007cba;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 4px;
+                cursor: pointer;
+                margin: 5px;
+              ">Retry</button>
+              <a href="index.html" style="
+                background: #6c757d;
+                color: white;
+                text-decoration: none;
+                padding: 10px 20px;
+                border-radius: 4px;
+                margin: 5px;
+                display: inline-block;
+              ">Back to Home</a>
+            </div>
+          </div>
+        `;
+      } else {
+        window.replayHub.utils.showError(errorMessage);
+      }
     } else {
-      alert('Error: Video not found or failed to load');
+      alert(`Error: ${errorMessage}`);
     }
   }
 }
