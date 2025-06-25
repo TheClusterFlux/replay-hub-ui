@@ -73,7 +73,7 @@ window.replayHub = window.replayHub || {};
   /**
    * Test video URL accessibility before attempting to play
    * @param {string} videoUrl - The video URL to test
-   * @returns {Promise<boolean>} - Whether the URL is accessible
+   * @returns {Promise<{accessible: boolean, corsError: boolean, suggestedFix: string, contentTypeIssue?: boolean}>} - Accessibility results
    */
   async function testVideoAccessibility(videoUrl) {
     try {
@@ -104,22 +104,52 @@ window.replayHub = window.replayHub || {};
       
       // Check if S3 returned a proper Content-Type
       const contentType = response.headers.get('content-type');
-      if (isS3Url(videoUrl) && contentType) {
+      if (isS3Url(videoUrl)) {
         console.log('S3 Content-Type detected:', contentType);
-        if (!contentType.startsWith('video/') && !contentType.includes('octet-stream')) {
-          console.warn('S3 file may not have correct Content-Type header:', contentType);
+        
+        if (!contentType) {
+          console.error('❌ No Content-Type header found on S3 object');
+          return { 
+            accessible: response.ok, 
+            corsError: false, 
+            suggestedFix: 'S3 object missing Content-Type header - needs to be set to video/mp4',
+            contentTypeIssue: true
+          };
+        } else if (!contentType.startsWith('video/') && !contentType.includes('octet-stream')) {
+          console.warn('⚠️ S3 file has incorrect Content-Type header:', contentType);
+          return { 
+            accessible: response.ok, 
+            corsError: false, 
+            suggestedFix: `S3 object has wrong Content-Type: "${contentType}" - should be video/mp4`,
+            contentTypeIssue: true
+          };
+        } else if (contentType.includes('octet-stream')) {
+          console.warn('⚠️ S3 file has generic Content-Type (octet-stream)');
+          return { 
+            accessible: response.ok, 
+            corsError: false, 
+            suggestedFix: 'S3 object has generic Content-Type - should be set to video/mp4 for better compatibility',
+            contentTypeIssue: true
+          };
         }
       }
       
-      return response.ok;
+      return { accessible: response.ok, corsError: false, suggestedFix: '', contentTypeIssue: false };
     } catch (error) {
       console.warn('Video URL accessibility test failed:', error);
-      // For S3 CORS issues, don't fail completely
-      if (error.message && error.message.includes('CORS')) {
-        console.log('CORS error detected - this is common with S3, video might still work');
+      
+      // Check for CORS-specific errors
+      if (error.message && (error.message.includes('CORS') || error.message.includes('cross-origin'))) {
+        console.error('🚫 CORS Error Detected! S3 bucket needs CORS configuration');
+        return { 
+          accessible: false, 
+          corsError: true, 
+          suggestedFix: 'S3 bucket needs CORS policy allowing your domain'
+        };
       }
-      // Don't fail completely, might still work with video element
-      return true;
+      
+      // For other errors, don't fail completely
+      return { accessible: true, corsError: false, suggestedFix: '', contentTypeIssue: false };
     }
   }
   /**
@@ -149,12 +179,23 @@ window.replayHub = window.replayHub || {};
     // Ensure video URL is properly encoded but preserve S3 signatures
     let processedUrl = videoUrl.trim();    
     
-    // For S3 URLs, optionally test accessibility first (only if not causing CORS issues)
+    // For S3 URLs, test accessibility and handle CORS issues
     if (isS3Url(processedUrl)) {
       console.log('S3 URL detected, testing accessibility...');
       try {
-        const accessible = await testVideoAccessibility(processedUrl);
-        if (!accessible) {
+        const accessResult = await testVideoAccessibility(processedUrl);
+        if (accessResult.corsError) {
+          console.error('🚫 CORS Error: Cannot access S3 video due to CORS policy');
+          console.error('💡 Solution:', accessResult.suggestedFix);
+          
+          // Try alternative approaches for CORS-blocked S3 videos
+          return initS3VideoWithCorsWorkaround(processedUrl, videoPlayer, videoEmbed);
+        } else if (accessResult.contentTypeIssue) {
+          console.error('📝 Content-Type Issue:', accessResult.suggestedFix);
+          
+          // Try to force video playback despite Content-Type issues
+          return initS3VideoWithContentTypeWorkaround(processedUrl, videoPlayer, videoEmbed, accessResult.suggestedFix);
+        } else if (!accessResult.accessible) {
           console.warn('S3 URL accessibility test suggests potential issues');
         }
       } catch (error) {
@@ -255,13 +296,16 @@ window.replayHub = window.replayHub || {};
       videoElement.removeAttribute('src');
       videoElement.load(); // Reset the video element state
       
-      // Set CORS attributes for S3 compatibility
-      videoElement.setAttribute('crossorigin', 'anonymous');
+      // Set attributes for video compatibility
       videoElement.setAttribute('preload', 'metadata');
-      
-      // Additional attributes for better compatibility
       videoElement.setAttribute('controls', 'true');
       videoElement.setAttribute('playsinline', 'true'); // Important for mobile Safari
+      
+      // Only set CORS for non-S3 URLs or when we're sure CORS is configured
+      // S3 URLs will be handled with a different approach if CORS fails
+      if (!isS3Url(videoUrl)) {
+        videoElement.setAttribute('crossorigin', 'anonymous');
+      }
       
       // Try multiple approaches for S3 compatibility
       if (isS3Url(videoUrl)) {
@@ -327,6 +371,314 @@ window.replayHub = window.replayHub || {};
            url.includes('.s3.') ||
            url.includes('s3-');
   }
+  
+  /**
+   * Handle S3 videos with CORS issues using alternative approaches
+   * @param {string} videoUrl - The S3 video URL
+   * @param {HTMLElement} videoPlayer - The video player element
+   * @param {HTMLElement} videoEmbed - The iframe element
+   */
+  function initS3VideoWithCorsWorkaround(videoUrl, videoPlayer, videoEmbed) {
+    console.log('🔧 Attempting CORS workaround for S3 video...');
+    
+    // Show error message with solution
+    const errorMessage = `
+      <div class="cors-error-message" style="
+        background: #ffe6e6;
+        border: 2px solid #ff4444;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+        text-align: center;
+      ">
+        <h3 style="color: #cc0000; margin-top: 0;">🚫 CORS Error</h3>
+        <p><strong>Cannot load video due to Cross-Origin Resource Sharing (CORS) policy.</strong></p>
+        <p>The S3 bucket needs to be configured to allow access from this domain.</p>
+        <details style="margin-top: 15px; text-align: left;">
+          <summary style="cursor: pointer; font-weight: bold;">🔧 How to fix this (for developers)</summary>
+          <div style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;">
+            <p><strong>Add this CORS policy to your S3 bucket:</strong></p>
+            <pre style="background: #333; color: #fff; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px;">[
+  {
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedOrigins": ["${window.location.origin}", "*"],
+    "ExposeHeaders": ["Content-Length", "Content-Type"]
+  }
+]</pre>
+            <p><strong>Or set individual object permissions to public read.</strong></p>
+          </div>
+        </details>
+        <button onclick="window.location.reload()" style="
+          background: #007cba;
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 4px;
+          cursor: pointer;
+          margin-top: 15px;
+        ">Retry</button>
+      </div>
+    `;
+    
+    // Try different approaches
+    console.log('Trying alternative approaches...');
+    
+    // Method 1: Try without CORS mode (no-cors)
+    initS3VideoNoCors(videoUrl, videoPlayer, videoEmbed, errorMessage);
+  }
+  
+  /**
+   * Try to load S3 video without CORS mode
+   * @param {string} videoUrl - The S3 video URL
+   * @param {HTMLElement} videoPlayer - The video player element
+   * @param {HTMLElement} videoEmbed - The iframe element
+   * @param {string} errorMessage - Error message to display if all methods fail
+   */
+  function initS3VideoNoCors(videoUrl, videoPlayer, videoEmbed, errorMessage) {
+    console.log('🔄 Trying no-cors approach...');
+    
+    // Clear and setup video element
+    videoPlayer.innerHTML = '';
+    videoPlayer.style.display = 'block';
+    videoEmbed.style.display = 'none';
+    
+    // Create video element without crossorigin attribute
+    const videoElement = document.createElement('video');
+    videoElement.id = 'video-player';
+    videoElement.className = 'custom-video-player';
+    videoElement.setAttribute('controls', 'true');
+    videoElement.setAttribute('preload', 'metadata');
+    videoElement.setAttribute('playsinline', 'true');
+    // Note: NOT setting crossorigin attribute to avoid CORS preflight
+    
+    // Add multiple source attempts
+    const sources = [
+      { src: videoUrl, type: 'video/mp4' },
+      { src: videoUrl, type: 'video/*' },
+      { src: videoUrl, type: '' }
+    ];
+    
+    sources.forEach((source, index) => {
+      const sourceElement = document.createElement('source');
+      sourceElement.src = source.src;
+      if (source.type) {
+        sourceElement.type = source.type;
+      }
+      
+      sourceElement.onerror = function(e) {
+        console.warn(`No-CORS source ${index + 1} failed (${source.type || 'no type'})`);
+      };
+      
+      videoElement.appendChild(sourceElement);
+    });
+    
+    // Set direct src as fallback
+    videoElement.src = videoUrl;
+    
+    // Add event handlers
+    videoElement.onloadedmetadata = function() {
+      console.log('✅ No-CORS approach successful!');
+      logVideoElementState(videoElement, 'NO_CORS_SUCCESS');
+      
+      // Try to initialize Plyr if available
+      if (window.Plyr) {
+        try {
+          currentPlayer = new Plyr(videoElement, {
+            controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'fullscreen'],
+            crossorigin: false // Important: disable crossorigin in Plyr
+          });
+          console.log('Plyr initialized for no-CORS video');
+        } catch (e) {
+          console.warn('Plyr initialization failed for no-CORS video:', e);
+        }
+      }
+    };
+    
+    videoElement.onerror = function(e) {
+      console.error('❌ No-CORS approach also failed');
+      logVideoElementState(videoElement, 'NO_CORS_FAILED');
+      
+      // Show error message as last resort
+      videoPlayer.innerHTML = errorMessage;
+      videoPlayer.style.display = 'block';
+      videoEmbed.style.display = 'none';
+    };
+    
+    // Add video element to player
+    videoPlayer.appendChild(videoElement);
+    
+    // Try to load
+    try {
+      videoElement.load();
+    } catch (error) {
+      console.error('Error loading no-CORS video:', error);
+      videoPlayer.innerHTML = errorMessage;
+    }
+  }
+  
+  /**
+   * Handle S3 videos with incorrect Content-Type headers
+   * @param {string} videoUrl - The S3 video URL
+   * @param {HTMLElement} videoPlayer - The video player element
+   * @param {HTMLElement} videoEmbed - The iframe element
+   * @param {string} issue - Description of the Content-Type issue
+   */
+  function initS3VideoWithContentTypeWorkaround(videoUrl, videoPlayer, videoEmbed, issue) {
+    console.log('🔧 Attempting Content-Type workaround for S3 video...');
+    
+    // Show error message with solution
+    const errorMessage = `
+      <div class="content-type-error-message" style="
+        background: #fff4e0;
+        border: 2px solid #ffa500;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+        text-align: center;
+      ">
+        <h3 style="color: #cc7a00; margin-top: 0;">📝 Content-Type Issue</h3>
+        <p><strong>${issue}</strong></p>
+        <p>The video file doesn't have the correct Content-Type header set in S3.</p>
+        <details style="margin-top: 15px; text-align: left;">
+          <summary style="cursor: pointer; font-weight: bold;">🔧 How to fix this (for developers)</summary>
+          <div style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;">
+            <p><strong>Option 1: Fix via AWS Console</strong></p>
+            <ol style="text-align: left;">
+              <li>Go to AWS S3 Console</li>
+              <li>Find your video file: <code>${videoUrl.split('/').pop()}</code></li>
+              <li>Select the file → Actions → Edit metadata</li>
+              <li>Add: <code>Content-Type: video/mp4</code></li>
+              <li>Save changes</li>
+            </ol>
+            <p><strong>Option 2: Fix via AWS CLI</strong></p>
+            <pre style="background: #333; color: #fff; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px;">aws s3 cp s3://your-bucket/${videoUrl.split('/').pop()} s3://your-bucket/${videoUrl.split('/').pop()} \\
+  --metadata-directive REPLACE \\
+  --content-type video/mp4</pre>
+            <p><strong>Option 3: Set Content-Type during upload</strong></p>
+            <p>Always specify <code>--content-type video/mp4</code> when uploading videos to S3.</p>
+          </div>
+        </details>
+        <button onclick="window.location.reload()" style="
+          background: #007cba;
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 4px;
+          cursor: pointer;
+          margin-top: 15px;
+        ">Retry</button>
+      </div>
+    `;
+    
+    // Try to force video playback despite Content-Type issues
+    console.log('🔄 Trying to force video playback with explicit MIME types...');
+    
+    // Clear and setup video element
+    videoPlayer.innerHTML = '';
+    videoPlayer.style.display = 'block';
+    videoEmbed.style.display = 'none';
+    
+    // Create video element
+    const videoElement = document.createElement('video');
+    videoElement.id = 'video-player';
+    videoElement.className = 'custom-video-player';
+    videoElement.setAttribute('controls', 'true');
+    videoElement.setAttribute('preload', 'metadata');
+    videoElement.setAttribute('playsinline', 'true');
+    
+    // For Content-Type issues, try aggressive MIME type forcing
+    // We'll create sources that explicitly tell the browser what to expect
+    const aggressiveSources = [
+      // Most common MP4 codec combinations
+      { src: videoUrl, type: 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"' },
+      { src: videoUrl, type: 'video/mp4; codecs="avc1.64001E, mp4a.40.2"' },
+      { src: videoUrl, type: 'video/mp4; codecs="avc1.4D401E, mp4a.40.2"' },
+      { src: videoUrl, type: 'video/mp4; codecs="mp4v.20.8, mp4a.40.2"' },
+      { src: videoUrl, type: 'video/mp4; codecs="avc1.42E01E"' },
+      { src: videoUrl, type: 'video/mp4' },
+      
+      // Try other common formats in case URL detection was wrong
+      { src: videoUrl, type: 'video/webm; codecs="vp8, vorbis"' },
+      { src: videoUrl, type: 'video/webm' },
+      { src: videoUrl, type: 'video/quicktime' },
+      { src: videoUrl, type: 'video/x-msvideo' },
+      
+      // Generic fallbacks
+      { src: videoUrl, type: 'video/*' },
+      { src: videoUrl, type: 'application/octet-stream' },
+      { src: videoUrl, type: '' } // No type - let browser decide
+    ];
+    
+    let sourcesWorking = 0;
+    
+    aggressiveSources.forEach((source, index) => {
+      const sourceElement = document.createElement('source');
+      sourceElement.src = source.src;
+      if (source.type) {
+        sourceElement.type = source.type;
+      }
+      
+      sourceElement.onerror = function(e) {
+        console.warn(`Content-Type workaround source ${index + 1} failed (${source.type || 'no type'})`);
+      };
+      
+      sourceElement.onload = function() {
+        sourcesWorking++;
+        console.log(`Content-Type workaround source ${index + 1} loaded successfully`);
+      };
+      
+      videoElement.appendChild(sourceElement);
+    });
+    
+    // Set direct src as fallback (most important for Content-Type issues)
+    videoElement.src = videoUrl;
+    
+    // Add event handlers
+    videoElement.onloadedmetadata = function() {
+      console.log('✅ Content-Type workaround successful!');
+      logVideoElementState(videoElement, 'CONTENT_TYPE_WORKAROUND_SUCCESS');
+      
+      // Try to initialize Plyr
+      if (window.Plyr) {
+        try {
+          currentPlayer = new Plyr(videoElement, {
+            controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'fullscreen'],
+            crossorigin: false // Avoid CORS issues
+          });
+          console.log('Plyr initialized for Content-Type workaround video');
+        } catch (e) {
+          console.warn('Plyr initialization failed for Content-Type workaround video:', e);
+        }
+      }
+    };
+    
+    videoElement.onerror = function(e) {
+      console.error('❌ Content-Type workaround also failed');
+      logVideoElementState(videoElement, 'CONTENT_TYPE_WORKAROUND_FAILED');
+      
+      // Show error message as last resort
+      videoPlayer.innerHTML = errorMessage;
+      videoPlayer.style.display = 'block';
+      videoEmbed.style.display = 'none';
+    };
+    
+    videoElement.oncanplay = function() {
+      console.log('✅ Content-Type workaround: Video can play!');
+    };
+    
+    // Add video element to player
+    videoPlayer.appendChild(videoElement);
+    
+    // Try to load
+    try {
+      videoElement.load();
+    } catch (error) {
+      console.error('Error loading Content-Type workaround video:', error);
+      videoPlayer.innerHTML = errorMessage;
+    }
+  }
+  
   /**
    * Setup video for S3 URLs with specific optimizations
    * @param {HTMLElement} videoElement - The video element
@@ -661,7 +1013,9 @@ window.replayHub = window.replayHub || {};
           loadSprite: true,
           iconUrl: 'https://cdn.plyr.io/3.7.8/plyr.svg',
           blankVideo: 'https://cdn.plyr.io/static/blank.mp4',
-          crossorigin: true,
+          // Conditionally set crossorigin based on whether we're dealing with CORS issues
+          crossorigin: !isS3Url(videoElement.src || videoElement.currentSrc) || 
+                      (videoElement.getAttribute('crossorigin') !== null),
           preload: 'metadata',
           // S3-specific optimizations
           seekTime: 10,
