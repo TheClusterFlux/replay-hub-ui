@@ -20,55 +20,34 @@ window.replayHub = window.replayHub || {};
   let currentHls = null;
   
   /**
-   * Log detailed video element state for debugging
+   * Log video element state for debugging (simplified)
    * @param {HTMLElement} videoElement - The video element
    * @param {string} context - Context label for the log
    */
   function logVideoElementState(videoElement, context = 'DEBUG') {
-    const networkStates = {
-      0: 'NETWORK_EMPTY',
-      1: 'NETWORK_IDLE', 
-      2: 'NETWORK_LOADING',
-      3: 'NETWORK_NO_SOURCE'
-    };
-    
-    const readyStates = {
-      0: 'HAVE_NOTHING',
-      1: 'HAVE_METADATA',
-      2: 'HAVE_CURRENT_DATA',
-      3: 'HAVE_FUTURE_DATA',
-      4: 'HAVE_ENOUGH_DATA'
-    };
-    
-    const errorCodes = {
-      1: 'MEDIA_ERR_ABORTED - The video download was aborted',
-      2: 'MEDIA_ERR_NETWORK - A network error occurred',
-      3: 'MEDIA_ERR_DECODE - The video is corrupted or not supported',
-      4: 'MEDIA_ERR_SRC_NOT_SUPPORTED - No video with supported format and MIME type found'
-    };
-    
-    console.group(`🎥 Video Element State [${context}]`);
-    console.log('Network State:', `${networkStates[videoElement.networkState]} (${videoElement.networkState})`);
-    console.log('Ready State:', `${readyStates[videoElement.readyState]} (${videoElement.readyState})`);
-    console.log('Current Source:', videoElement.currentSrc || videoElement.src);
-    console.log('Duration:', videoElement.duration);
-    console.log('Dimensions:', `${videoElement.videoWidth}x${videoElement.videoHeight}`);
-    
-    if (videoElement.error) {
-      console.error('Error Code:', `${errorCodes[videoElement.error.code]} (${videoElement.error.code})`);
-      console.error('Error Message:', videoElement.error.message);
+    // Only log errors and important state changes
+    if (context === 'ERROR' || context.includes('FAILED') || videoElement.error) {
+      const errorCodes = {
+        1: 'MEDIA_ERR_ABORTED - The video download was aborted',
+        2: 'MEDIA_ERR_NETWORK - A network error occurred', 
+        3: 'MEDIA_ERR_DECODE - The video is corrupted or not supported',
+        4: 'MEDIA_ERR_SRC_NOT_SUPPORTED - No video with supported format and MIME type found'
+      };
+      
+      console.group(`🚫 Video Error [${context}]`);
+      console.error('Current Source:', videoElement.currentSrc || videoElement.src);
+      console.error('Duration:', videoElement.duration);
+      console.error('Dimensions:', `${videoElement.videoWidth}x${videoElement.videoHeight}`);
+      
+      if (videoElement.error) {
+        console.error('Error Code:', `${errorCodes[videoElement.error.code]} (${videoElement.error.code})`);
+        console.error('Error Message:', videoElement.error.message);
+      }
+      console.groupEnd();
+    } else if (context.includes('SUCCESS')) {
+      console.log(`✅ Video Success [${context}]: ${videoElement.videoWidth}x${videoElement.videoHeight}, ${videoElement.duration}s`);
     }
-    
-    // Log all source elements
-    const sources = videoElement.querySelectorAll('source');
-    if (sources.length > 0) {
-      console.log('Source Elements:');
-      sources.forEach((source, index) => {
-        console.log(`  ${index + 1}. ${source.src} (${source.type || 'no type'})`);
-      });
-    }
-    
-    console.groupEnd();
+    // Skip other logging to reduce noise
   }
   /**
    * Test video URL accessibility before attempting to play
@@ -342,35 +321,38 @@ window.replayHub = window.replayHub || {};
       }
         // Add comprehensive error handling
       videoElement.onerror = function(e) {
-        console.error('Video error details:', {
-          error: e,
-          networkState: videoElement.networkState,
-          readyState: videoElement.readyState,
-          currentSrc: videoElement.currentSrc,
-          videoType: videoType,
-          errorCode: videoElement.error ? videoElement.error.code : 'unknown',
-          errorMessage: videoElement.error ? videoElement.error.message : 'unknown'
-        });
+        console.error('🚫 Video Error Occurred');
+        
+        // Check for specific decode errors
+        if (videoElement.error && videoElement.error.code === 3) {
+          console.error('❌ DECODE ERROR: Video file is corrupted or unsupported format');
+          
+          // Show specific error for corrupted video
+          const videoPlayer = document.getElementById('video-player');
+          const videoEmbed = document.getElementById('video-embed');
+          
+          showCorruptedVideoError(videoUrl, videoPlayer, videoEmbed);
+          return; // Don't try alternatives for corrupted videos
+        }
         
         logVideoElementState(videoElement, 'ERROR');
         
-        // Try alternative approaches before falling back to iframe
+        // Try alternative approaches for other errors
         tryAlternativeFormats(videoElement, videoUrl);
       };
       
       videoElement.onloadedmetadata = function() {
-        console.log('Video metadata loaded successfully');
-        logVideoElementState(videoElement, 'METADATA_LOADED');
+        console.log('✅ Video metadata loaded successfully');
+        logVideoElementState(videoElement, 'METADATA_LOADED_SUCCESS');
       };
       
       videoElement.oncanplay = function() {
-        console.log('Video can start playing');
-        logVideoElementState(videoElement, 'CAN_PLAY');
+        console.log('✅ Video ready to play');
+        logVideoElementState(videoElement, 'CAN_PLAY_SUCCESS');
       };
       
       videoElement.onloadstart = function() {
-        console.log('Video load started');
-        logVideoElementState(videoElement, 'LOAD_START');
+        // Reduce noise - only log if there are issues
       };
       
       // Initialize Plyr player after a short delay to ensure video is ready
@@ -597,6 +579,99 @@ window.replayHub = window.replayHub || {};
       console.error('Error loading no-CORS video:', error);
       videoPlayer.innerHTML = errorMessage;
     }
+  }
+  
+  /**
+   * Show error message for corrupted/unsupported video files
+   * @param {string} videoUrl - The video URL
+   * @param {HTMLElement} videoPlayer - The video player element
+   * @param {HTMLElement} videoEmbed - The iframe element
+   */
+  function showCorruptedVideoError(videoUrl, videoPlayer, videoEmbed) {
+    console.log('🚫 Showing corrupted video error message');
+    
+    const filename = videoUrl.split('/').pop().split('?')[0];
+    
+    const errorMessage = `
+      <div class="corrupted-video-error" style="
+        background: #ffe6e6;
+        border: 2px solid #ff4444;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+        text-align: center;
+      ">
+        <h3 style="color: #cc0000; margin-top: 0;">📹 Video Cannot Be Played</h3>
+        <p><strong>The video file is corrupted or in an unsupported format.</strong></p>
+        <p>File: <code>${filename}</code></p>
+        
+        <div style="background: #f5f5f5; padding: 15px; border-radius: 4px; margin: 15px 0; text-align: left;">
+          <h4>🔍 What This Means:</h4>
+          <ul>
+            <li><strong>File Corruption:</strong> The video file may have been damaged during upload or storage</li>
+            <li><strong>Unsupported Format:</strong> The video might be encoded with unsupported codecs</li>
+            <li><strong>Incomplete Upload:</strong> The file transfer may not have completed properly</li>
+            <li><strong>Wrong File Type:</strong> The file might not actually be a video</li>
+          </ul>
+        </div>
+        
+        <details style="margin-top: 15px; text-align: left;">
+          <summary style="cursor: pointer; font-weight: bold;">🔧 How to Fix This</summary>
+          <div style="margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 4px;">
+            <h5>For Developers:</h5>
+            <ol>
+              <li><strong>Check the original file:</strong> Verify the source video works locally</li>
+              <li><strong>Re-upload the video:</strong> Delete and upload the file again</li>
+              <li><strong>Convert the video:</strong> Use ffmpeg to convert to a standard format:
+                <pre style="background: #333; color: #fff; padding: 8px; border-radius: 4px; font-size: 12px; margin: 5px 0;">ffmpeg -i input.mov -c:v libx264 -c:a aac -preset medium output.mp4</pre>
+              </li>
+              <li><strong>Check file integrity:</strong> Verify the S3 object wasn't corrupted during upload</li>
+            </ol>
+            
+            <h5>Supported Formats:</h5>
+            <p>✅ MP4 (H.264 + AAC)<br/>
+               ✅ WebM (VP8/VP9 + Vorbis/Opus)<br/>
+               ❌ Avoid: MOV, AVI, FLV, WMV without conversion</p>
+          </div>
+        </details>
+        
+        <div style="margin-top: 20px;">
+          <button onclick="window.location.reload()" style="
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+          ">Retry</button>
+          <button onclick="window.open('${videoUrl}', '_blank')" style="
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+          ">Download File</button>
+          <a href="index.html" style="
+            background: #6c757d;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            margin: 5px;
+            display: inline-block;
+          ">Back to Home</a>
+        </div>
+      </div>
+    `;
+    
+    // Show error message
+    cleanupPlayer();
+    videoPlayer.innerHTML = errorMessage;
+    videoPlayer.style.display = 'block';
+    videoEmbed.style.display = 'none';
   }
   
   /**
@@ -1264,14 +1339,13 @@ window.replayHub = window.replayHub || {};
         
         currentPlayer = new Plyr(videoElement, plyrConfig);
         
-        // Add event listeners with more detailed logging
+        // Add essential event listeners
         currentPlayer.on('ready', () => {
-          console.log('Plyr player ready');
-          console.log('Player source:', currentPlayer.source);
+          console.log('✅ Plyr player ready');
         });
         
         currentPlayer.on('error', (event) => {
-          console.error('Plyr error event:', event);
+          console.error('🚫 Plyr error:', event);
           console.error('Player state:', {
             source: currentPlayer.source,
             currentTime: currentPlayer.currentTime,
@@ -1280,24 +1354,9 @@ window.replayHub = window.replayHub || {};
           });
         });
         
-        currentPlayer.on('loadstart', () => {
-          console.log('Plyr: Video loading started');
-        });
-        
-        currentPlayer.on('canplay', () => {
-          console.log('Plyr: Video can start playing');
-        });
-        
-        currentPlayer.on('loadeddata', () => {
-          console.log('Plyr: Video data loaded');
-        });
-        
+        // Remove excessive progress logging
         currentPlayer.on('loadedmetadata', () => {
-          console.log('Plyr: Video metadata loaded');
-        });
-        
-        currentPlayer.on('progress', () => {
-          console.log('Plyr: Video loading progress');
+          console.log('✅ Plyr: Video metadata loaded');
         });
         
         // Handle media errors specifically
