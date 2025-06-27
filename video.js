@@ -13,6 +13,9 @@ function initVideoPage() {
   }
   window.videoPageInitialized = true;
   
+  // Initialize authentication UI (from app.js)
+  initVideoPageAuth();
+  
   // Get URL parameters
   const urlParams = new URLSearchParams(window.location.search);
   const s3Url = urlParams.get('s3_url');
@@ -26,6 +29,52 @@ function initVideoPage() {
   
   // Start initializing immediately rather than waiting for DOMContentLoaded
   initializeVideoUI(s3Url, videoId);
+}
+
+/**
+ * Initialize authentication for video page
+ */
+async function initVideoPageAuth() {
+  console.log("Initializing video page authentication...");
+  
+  // Wait for app.js functions to be available
+  const waitForAppJS = () => {
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (typeof initializeAuth === 'function' && 
+            typeof initAuthButtons === 'function' && 
+            typeof initUploadModal === 'function') {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 50);
+      
+      // Timeout after 3 seconds
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        console.warn('app.js functions not available, proceeding without full auth initialization');
+        resolve();
+      }, 3000);
+    });
+  };
+  
+  await waitForAppJS();
+  
+  // Initialize authentication buttons and upload modal
+  if (typeof initAuthButtons === 'function') {
+    initAuthButtons();
+  }
+  
+  if (typeof initUploadModal === 'function') {
+    initUploadModal();
+  }
+  
+  // Initialize authentication state
+  if (typeof initializeAuth === 'function') {
+    await initializeAuth();
+  } else {
+    console.warn('initializeAuth function not available');
+  }
 }
 
 /**

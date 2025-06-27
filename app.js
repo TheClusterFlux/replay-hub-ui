@@ -576,6 +576,12 @@ window.showLoginModal = showLoginModal;
 window.showRegisterModal = showRegisterModal;
 window.showProfileModal = showProfileModal;
 
+// Make initialization functions globally accessible for video page
+window.initializeAuth = initializeAuth;
+window.initAuthButtons = initAuthButtons;
+window.initUploadModal = initUploadModal;
+window.updateLoginStatus = updateLoginStatus;
+
 // Close modals when clicking outside
 window.onclick = function(event) {
     const modals = ['loginModal', 'registerModal', 'profileModal'];
