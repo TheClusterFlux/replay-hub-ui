@@ -196,6 +196,12 @@ window.replayHub = window.replayHub || {};
     actions.appendChild(dislikeButton);
     actions.appendChild(replyButton);
     
+    // Add delete button if current user is video owner
+    if (isVideoOwner()) {
+      const deleteButton = createActionButton('delete', 'Delete', () => deleteComment(comment.id, videoId));
+      actions.appendChild(deleteButton);
+    }
+    
     // Assemble comment
     commentContainer.appendChild(header);
     commentContainer.appendChild(body);
@@ -275,6 +281,12 @@ window.replayHub = window.replayHub || {};
     actions.appendChild(likeButton);
     actions.appendChild(dislikeButton);
     
+    // Add delete button if current user is video owner
+    if (isVideoOwner()) {
+      const deleteButton = createActionButton('delete', 'Delete', () => deleteReply(reply.id, videoId));
+      actions.appendChild(deleteButton);
+    }
+    
     // Assemble reply
     replyContainer.appendChild(header);
     replyContainer.appendChild(body);
@@ -294,6 +306,9 @@ window.replayHub = window.replayHub || {};
   function createActionButton(action, text, handler, isReply = false) {
     const button = document.createElement('button');
     button.className = isReply ? 'comment-action' : 'comment-action';
+    if (action === 'delete') {
+      button.className += ' delete-action';
+    }
     button.dataset.action = action;
     
     if (action === 'like') {
@@ -302,6 +317,9 @@ window.replayHub = window.replayHub || {};
       button.innerHTML = `<i class="far fa-thumbs-down"></i> <span>${text}</span>`;
     } else if (action === 'reply') {
       button.innerHTML = `<i class="fas fa-reply"></i> ${text}`;
+    } else if (action === 'delete') {
+      button.innerHTML = `<i class="fas fa-trash"></i> ${text}`;
+      button.title = 'Delete this comment';
     }
     
     button.addEventListener('click', handler);
@@ -680,10 +698,401 @@ window.replayHub = window.replayHub || {};
     }
   }
 
+  /**
+   * Initialize save/bookmark functionality for the video
+   * @param {string} videoId - The ID of the video
+   */
+  async function initSaveBookmark(videoId) {
+    try {
+      const saveButton = document.getElementById('save-button');
+      if (!saveButton) return;
+      
+      // Add event listener for save/bookmark button
+      saveButton.addEventListener('click', () => handleSaveVideo(videoId));
+      
+      // Load current save state if user is logged in
+      if (window.currentUser && window.currentUser.isLoggedIn) {
+        await loadSaveState(videoId);
+      }
+    } catch (error) {
+      console.error('Error initializing save/bookmark:', error);
+    }
+  }
+
+  /**
+   * Handle saving/bookmarking a video
+   * @param {string} videoId - The video ID
+   * @returns {Promise<Object>} - The save result
+   */
+  async function handleSaveVideo(videoId) {
+    try {
+      // Access global currentUser object from window
+      const currentUser = window.currentUser || { id: 'guest-user', name: 'Guest User' };
+      
+      // Check if user is logged in
+      if (!currentUser.isLoggedIn) {
+        alert('Please log in to save videos to your watchlist.');
+        if (window.login) window.login();
+        throw new Error('User not logged in');
+      }
+      
+      const response = await fetch(`${BASE_URL}/api/user/saved-videos`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token')}`
+        },
+        body: JSON.stringify({
+          videoId,
+          userId: currentUser.id,
+          timestamp: new Date().toISOString()
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error saving video: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      updateSaveButtonUI(data.saved);
+      
+      // Show success message
+      if (window.showMessage) {
+        window.showMessage(data.saved ? 'Video saved to your watchlist!' : 'Video removed from your watchlist!', 'success');
+      } else {
+        alert(data.saved ? 'Video saved to your watchlist!' : 'Video removed from your watchlist!');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error handling save video:', error);
+      if (window.showMessage) {
+        window.showMessage('Failed to save video. Please try again.', 'error');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Load the current save state for a video
+   * @param {string} videoId - The video ID
+   */
+  async function loadSaveState(videoId) {
+    try {
+      const currentUser = window.currentUser;
+      if (!currentUser || !currentUser.isLoggedIn) return;
+      
+      const response = await fetch(`${BASE_URL}/api/user/saved-videos/${videoId}`, {
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token')}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        updateSaveButtonUI(data.saved);
+      }
+    } catch (error) {
+      console.warn('Error loading save state:', error);
+    }
+  }
+
+  /**
+   * Update the save button UI
+   * @param {boolean} isSaved - Whether the video is saved
+   */
+  function updateSaveButtonUI(isSaved) {
+    const saveButton = document.getElementById('save-button');
+    if (!saveButton) return;
+    
+    const icon = saveButton.querySelector('i');
+    const span = saveButton.querySelector('span');
+    
+    if (isSaved) {
+      if (icon) icon.className = 'fas fa-bookmark';
+      if (span) span.textContent = 'Saved';
+      saveButton.classList.add('active');
+    } else {
+      if (icon) icon.className = 'far fa-bookmark';
+      if (span) span.textContent = 'Save';
+      saveButton.classList.remove('active');
+    }
+  }
+
+  /**
+   * Initialize share functionality for the video
+   * @param {string} videoId - The ID of the video
+   */
+  async function initShare(videoId) {
+    try {
+      const shareButton = document.getElementById('share-button');
+      if (!shareButton) return;
+      
+      // Add event listener for share button
+      shareButton.addEventListener('click', () => handleShareVideo(videoId));
+    } catch (error) {
+      console.error('Error initializing share:', error);
+    }
+  }
+
+  /**
+   * Handle sharing a video
+   * @param {string} videoId - The video ID
+   */
+  async function handleShareVideo(videoId) {
+    try {
+      const currentUrl = window.location.href;
+      const videoTitle = document.getElementById('video-title')?.textContent || 'Check out this video';
+      
+      // Try to use the Web Share API if available
+      if (navigator.share) {
+        await navigator.share({
+          title: videoTitle,
+          text: 'Watch this video on Replay Hub',
+          url: currentUrl
+        });
+        return;
+      }
+      
+      // Fallback: Copy to clipboard
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(currentUrl);
+        if (window.showMessage) {
+          window.showMessage('Video link copied to clipboard!', 'success');
+        } else {
+          alert('Video link copied to clipboard!');
+        }
+      } else {
+        // Final fallback: Show share modal with the URL
+        showShareModal(currentUrl, videoTitle);
+      }
+    } catch (error) {
+      console.error('Error sharing video:', error);
+      if (error.name !== 'AbortError') { // User cancelled share
+        if (window.showMessage) {
+          window.showMessage('Failed to share video. Link copied to clipboard instead.', 'info');
+        }
+        // Try clipboard as fallback
+        try {
+          await navigator.clipboard.writeText(window.location.href);
+        } catch (clipError) {
+          console.error('Clipboard fallback failed:', clipError);
+        }
+      }
+    }
+  }
+
+  /**
+   * Show share modal with copy options
+   * @param {string} url - The video URL
+   * @param {string} title - The video title
+   */
+  function showShareModal(url, title) {
+    // Create a simple share modal
+    const modal = document.createElement('div');
+    modal.className = 'share-modal-overlay';
+    modal.innerHTML = `
+      <div class="share-modal">
+        <div class="share-modal-header">
+          <h3>Share Video</h3>
+          <button class="share-modal-close">&times;</button>
+        </div>
+        <div class="share-modal-body">
+          <p><strong>${title}</strong></p>
+          <div class="share-url-container">
+            <input type="text" value="${url}" readonly class="share-url-input">
+            <button class="copy-url-btn">Copy</button>
+          </div>
+          <div class="share-social">
+            <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}" target="_blank" class="share-btn twitter">
+              <i class="fab fa-twitter"></i> Twitter
+            </a>
+            <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}" target="_blank" class="share-btn facebook">
+              <i class="fab fa-facebook"></i> Facebook
+            </a>
+            <a href="https://api.whatsapp.com/send?text=${encodeURIComponent(title + ' ' + url)}" target="_blank" class="share-btn whatsapp">
+              <i class="fab fa-whatsapp"></i> WhatsApp
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Add styles
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Event listeners
+    modal.querySelector('.share-modal-close').addEventListener('click', () => {
+      document.body.removeChild(modal);
+    });
+    
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        document.body.removeChild(modal);
+      }
+    });
+    
+    modal.querySelector('.copy-url-btn').addEventListener('click', async () => {
+      const input = modal.querySelector('.share-url-input');
+      input.select();
+      try {
+        await navigator.clipboard.writeText(url);
+        modal.querySelector('.copy-url-btn').textContent = 'Copied!';
+        setTimeout(() => {
+          modal.querySelector('.copy-url-btn').textContent = 'Copy';
+        }, 2000);
+      } catch (err) {
+        // Fallback for older browsers
+        document.execCommand('copy');
+        modal.querySelector('.copy-url-btn').textContent = 'Copied!';
+        setTimeout(() => {
+          modal.querySelector('.copy-url-btn').textContent = 'Copy';
+        }, 2000);
+      }
+    });
+  }
+
+  /**
+   * Check if current user is the video owner
+   * @returns {boolean} - Whether current user owns the video
+   */
+  function isVideoOwner() {
+    const currentUser = window.currentUser;
+    const videoData = window.currentVideoData;
+    
+    if (!currentUser || !currentUser.isLoggedIn || !videoData) {
+      return false;
+    }
+    
+    // Check if current user is the uploader
+    return videoData.uploader === currentUser.username || 
+           videoData.uploader === currentUser.name ||
+           videoData.user_id === currentUser.id;
+  }
+
+  /**
+   * Delete a comment
+   * @param {string} commentId - The ID of the comment to delete
+   * @param {string} videoId - The ID of the video
+   */
+  async function deleteComment(commentId, videoId) {
+    if (!confirm('Are you sure you want to delete this comment? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${BASE_URL}/api/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      // Remove the comment from the UI
+      const commentElement = document.querySelector(`[data-comment-id="${commentId}"]`);
+      if (commentElement) {
+        commentElement.remove();
+      }
+      
+      // Update comments count
+      updateCommentsCount(-1);
+      
+      showMessage('Comment deleted successfully!', 'success');
+      
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      showMessage('Failed to delete comment', 'error');
+    }
+  }
+
+  /**
+   * Delete a reply
+   * @param {string} replyId - The ID of the reply to delete
+   * @param {string} videoId - The ID of the video
+   */
+  async function deleteReply(replyId, videoId) {
+    if (!confirm('Are you sure you want to delete this reply? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${BASE_URL}/api/replies/${replyId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      // Remove the reply from the UI
+      const replyElement = document.querySelector(`[data-reply-id="${replyId}"]`);
+      if (replyElement) {
+        replyElement.remove();
+      }
+      
+      showMessage('Reply deleted successfully!', 'success');
+      
+    } catch (error) {
+      console.error('Error deleting reply:', error);
+      showMessage('Failed to delete reply', 'error');
+    }
+  }
+
+  /**
+   * Update the comments count display
+   * @param {number} delta - The change in count (positive or negative)
+   */
+  function updateCommentsCount(delta) {
+    const commentsCountElement = document.getElementById('comments-count');
+    if (!commentsCountElement) return;
+    
+    const currentText = commentsCountElement.textContent;
+    const currentCount = parseInt(currentText.match(/\d+/)?.[0] || '0');
+    const newCount = Math.max(0, currentCount + delta);
+    
+    commentsCountElement.textContent = `${newCount} Comment${newCount !== 1 ? 's' : ''}`;
+  }
+
+  /**
+   * Show a message to the user
+   * @param {string} message - The message to show
+   * @param {string} type - The message type (success, error, info)
+   */
+  function showMessage(message, type) {
+    if (window.showMessage) {
+      window.showMessage(message, type);
+    } else {
+      alert(message);
+    }
+  }
+
   // Export functions
   window.replayHub.videoComments = {
     initComments,
-    initReactions
+    initReactions,
+    initSaveBookmark,
+    initShare
   };
 
   // VideoComments module ready

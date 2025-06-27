@@ -1212,3 +1212,137 @@ textarea.form-control {
     border-top-color: #555;
   }
 }
+
+/* Video owner edit controls */
+.edit-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 10;
+}
+
+.edit-btn:hover {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+#video-title:hover .edit-btn,
+.video-description-container:hover .edit-btn,
+.video-players-section:hover .edit-btn {
+  opacity: 1;
+}
+
+.video-players-section {
+  margin: 15px 0;
+  padding: 15px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  position: relative;
+}
+
+.players-label {
+  font-weight: bold;
+  margin-bottom: 5px;
+  color: #333;
+  font-size: 14px;
+}
+
+.players-list {
+  color: #666;
+  font-size: 14px;
+}
+
+.owner-controls {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #ffc107;
+}
+
+.owner-controls-header {
+  margin-bottom: 15px;
+}
+
+.owner-controls-header h4 {
+  color: #856404;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+}
+
+.owner-controls-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.danger-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.3s ease;
+  font-size: 14px;
+}
+
+.danger-btn:hover {
+  background: #c82333;
+}
+
+/* Comment delete buttons */
+.delete-action {
+  background: #dc3545 !important;
+  color: white !important;
+  border-radius: 4px !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  margin-left: 8px !important;
+}
+
+.delete-action:hover {
+  background: #c82333 !important;
+}
+
+/* Dark theme adjustments for owner controls */
+@media (prefers-color-scheme: dark) {
+  .video-players-section {
+    background-color: #2a2a2a;
+    border-color: #555;
+  }
+  
+  .players-label {
+    color: #ffffff;
+  }
+  
+  .players-list {
+    color: #aaaaaa;
+  }
+  
+  .owner-controls {
+    background-color: #2a2a2a;
+    border-left-color: #ffc107;
+  }
+  
+  .owner-controls-header h4 {
+    color: #ffc107;
+  }
+}

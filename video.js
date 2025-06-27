@@ -217,6 +217,8 @@ async function initializeVideoUI(s3Url, videoId, videoData = null) {
     if (videoId && window.replayHub.videoComments) {
       window.replayHub.videoComments.initComments(videoId);
       window.replayHub.videoComments.initReactions(videoId);
+      window.replayHub.videoComments.initSaveBookmark(videoId);
+      window.replayHub.videoComments.initShare(videoId);
     } else if (videoId) {
       console.warn('Comments module not available');
     }
