@@ -101,7 +101,17 @@ async function registerUser(userData) {
             
             return result;
         } else {
-            showMessage(result.error || 'Registration failed', 'error');
+            // Show specific error message to help user
+            let errorMessage = result.error || 'Registration failed';
+            if (errorMessage.toLowerCase().includes('email')) {
+                errorMessage = 'Please enter a valid email address';
+            } else if (errorMessage.toLowerCase().includes('username')) {
+                errorMessage = 'Username is already taken or invalid';
+            } else if (errorMessage.toLowerCase().includes('password')) {
+                errorMessage = 'Password must be at least 8 characters long';
+            }
+            
+            showMessage(errorMessage, 'error');
             return result;
         }
     } catch (error) {
@@ -433,7 +443,7 @@ function createRegisterModal() {
             <form id="registerForm" onsubmit="handleRegister(event)">
                 <div class="form-group">
                     <label for="register-username">Username:</label>
-                    <input type="text" id="register-username" name="username" required minlength="3" maxlength="30" pattern="[a-zA-Z0-9_-]+">
+                    <input type="text" id="register-username" name="username" required minlength="3" maxlength="30" pattern="[a-zA-Z0-9_\\-]+">
                     <small>3-30 characters, letters, numbers, underscores, and hyphens only</small>
                 </div>
                 <div class="form-group">
@@ -560,6 +570,11 @@ async function handleProfileUpdate(event) {
 window.handleLogin = handleLogin;
 window.handleRegister = handleRegister;
 window.handleProfileUpdate = handleProfileUpdate;
+
+// Make modal functions globally accessible
+window.showLoginModal = showLoginModal;
+window.showRegisterModal = showRegisterModal;
+window.showProfileModal = showProfileModal;
 
 // Close modals when clicking outside
 window.onclick = function(event) {
