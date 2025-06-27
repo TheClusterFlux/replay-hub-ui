@@ -180,7 +180,13 @@ async function initializeVideoUI(s3Url, videoId, videoData = null) {
       showErrorMessage('Video player could not be loaded');
       return;
     }
-      // Initialize video player
+      // Initialize video player - but only if we have a valid s3Url
+    if (!s3Url) {
+      console.error('Cannot initialize video player: s3Url is null or empty');
+      showErrorMessage('Video URL not available. Please check the video link.');
+      return;
+    }
+    
     if (window.Plyr && window.replayHub.videoPlayer) {
       window.replayHub.videoPlayer.initVideoPlayer(s3Url);
     } else {

@@ -148,9 +148,16 @@ function logout() {
 }
 
 function updateLoginStatus(isLoggedIn) {
+    console.log('updateLoginStatus called with:', isLoggedIn);
     const loginButton = document.getElementById('login-button');
     const registerButton = document.getElementById('register-button');
     const uploadButton = document.getElementById('upload-button');
+    
+    console.log('Button elements found:', {
+        loginButton: !!loginButton,
+        registerButton: !!registerButton,
+        uploadButton: !!uploadButton
+    });
     
     // Update current user information
     if (isLoggedIn && window.replayHub && window.replayHub.auth) {
@@ -171,13 +178,16 @@ function updateLoginStatus(isLoggedIn) {
         currentUser.email = null;
         currentUser.avatar = null;
         currentUser.isLoggedIn = false;
+        console.log('User logged out or not authenticated');
     }
     
     // Update UI with login status
     if (loginButton) {
+        console.log('Updating UI, isLoggedIn:', isLoggedIn);
         if (isLoggedIn) {
             // Create profile button if it doesn't exist
             let profileButton = document.getElementById('profile-button');
+            console.log('Profile button exists:', !!profileButton);
             if (!profileButton) {
                 const userActions = document.querySelector('.user-actions');
                 if (userActions) {
@@ -195,7 +205,8 @@ function updateLoginStatus(isLoggedIn) {
                     if (currentUser.avatar) {
                         avatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.name}" />`;
                     } else {
-                        avatar.textContent = currentUser.name.charAt(0).toUpperCase();
+                        // Use Font Awesome user icon as default
+                        avatar.innerHTML = '<i class="fas fa-user"></i>';
                     }
                     
                     const username = document.createElement('span');
@@ -264,7 +275,8 @@ function updateLoginStatus(isLoggedIn) {
                     if (currentUser.avatar) {
                         avatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.name}" />`;
                     } else {
-                        avatar.textContent = currentUser.name.charAt(0).toUpperCase();
+                        // Use Font Awesome user icon as default
+                        avatar.innerHTML = '<i class="fas fa-user"></i>';
                     }
                 }
                 
@@ -274,20 +286,36 @@ function updateLoginStatus(isLoggedIn) {
             }
             
             // Hide login/register buttons
-            if (loginButton) loginButton.style.display = 'none';
-            if (registerButton) registerButton.style.display = 'none';
+            if (loginButton) {
+                loginButton.style.display = 'none';
+                console.log('Login button hidden');
+            }
+            if (registerButton) {
+                registerButton.style.display = 'none';
+                console.log('Register button hidden');
+            }
             
             // Show profile button
-            if (profileButton) profileButton.style.display = 'block';
+            if (profileButton) {
+                profileButton.style.display = 'block';
+                console.log('Profile button shown');
+            }
         } else {
             // Show login/register buttons
-            if (loginButton) loginButton.style.display = 'block';
-            if (registerButton) registerButton.style.display = 'block';
+            if (loginButton) {
+                loginButton.style.display = 'block';
+                console.log('Login button shown');
+            }
+            if (registerButton) {
+                registerButton.style.display = 'block';
+                console.log('Register button shown');
+            }
             
             // Hide and remove profile button
             const profileButton = document.getElementById('profile-button');
             if (profileButton) {
                 profileButton.remove();
+                console.log('Profile button removed');
             }
         }
     }
@@ -1053,9 +1081,8 @@ function initPage() {
     // Then initialize page-specific functionality
     if (path.endsWith('index.html') || path === '/' || path === '') {
         initHomePage();
-    } else if (path.endsWith('video.html')) {
-        initVideoPage();
     }
+    // Note: video.html initialization is now handled by video.js
 }
 
 // Initialize the homepage
@@ -1132,45 +1159,8 @@ function filterVideos(searchTerm) {
     });
 }
 
-// Function to initialize the video page
-function initVideoPage() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const videoId = urlParams.get('id');
-    
-    // If no video ID is provided, show an error but don't return immediately
-    // This allows other page functionality (like auth buttons) to still work
-    if (!videoId) {
-        // Check if we're actually on a video page that should have a video
-        const videoPlayerElement = document.getElementById('video-player');
-        if (videoPlayerElement) {
-            alert('Error: Video ID not provided.');
-        }
-        return;
-    }
-    
-    // Fetch video metadata by short ID
-    fetchVideo(videoId)
-        .then(video => {
-            if (!video) {
-                alert('Video not found.');
-                return;
-            }
-            // Update the video view count
-            updateVideoView(videoId)
-                .then(response => {
-                    const viewCountElement = document.getElementById('view-count');
-                    if (viewCountElement && response && response.views) {
-                        viewCountElement.textContent = formatViews(response.views);
-                    }
-                });
-            // Initialize video player, metadata, etc. using video.s3_url
-            // ...existing code for video page setup...
-            console.log('Video page initialized for:', video.s3_url, 'ID:', videoId);
-        })
-        .catch(error => {
-            alert('Error loading video.');
-        });
-}
+// Note: initVideoPage function has been moved to video.js for better organization
+// This stub remains for compatibility but video.js handles the full implementation
 
 // Initialize authentication buttons
 function initAuthButtons() {
