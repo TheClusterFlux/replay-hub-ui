@@ -69,12 +69,38 @@
         </div>
         
         <div class="video-details">
-            <h1 id="video-title" class="video-title-large">Video Title</h1>
+            <div class="video-title-container">
+                <h1 id="video-title" class="video-title-large">Video Title</h1>
+                <button id="edit-title-btn" class="edit-btn" style="display: none;" title="Edit title">
+                    <i class="fas fa-edit"></i>
+                </button>
+            </div>
+            
             <div class="video-stats-row">
                 <div class="video-stats">
                     <span id="video-views">0 views</span>
                     <span>&bull;</span>
                     <span id="video-date">April 27, 2025</span>
+                    <span>&bull;</span>
+                    <span id="video-uploader">Unknown</span>
+                </div>
+            </div>
+            
+            <!-- Owner Controls Panel (only visible to video owner) -->
+            <div id="owner-controls" class="owner-controls" style="display: none;">
+                <div class="owner-controls-header">
+                    <i class="fas fa-crown"></i>
+                    <span>Owner Controls</span>
+                </div>
+                <div class="owner-controls-actions">
+                    <button id="edit-metadata-btn" class="owner-btn edit-btn">
+                        <i class="fas fa-edit"></i>
+                        Edit Video
+                    </button>
+                    <button id="delete-video-btn" class="owner-btn delete-btn">
+                        <i class="fas fa-trash"></i>
+                        Delete Video
+                    </button>
                 </div>
             </div>
             
@@ -100,9 +126,28 @@
             <div class="divider"></div>
             
             <div class="video-description-container">
-                <p id="video-description" class="video-description">
+                <div class="description-header">
+                    <h3>Description</h3>
+                    <button id="edit-description-btn" class="edit-btn" style="display: none;" title="Edit description">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </div>
+                <div id="video-description" class="video-description">
                     Loading video description...
-                </p>
+                </div>
+            </div>
+            
+            <!-- Players Section (only shown if players exist) -->
+            <div id="players-section" class="players-section" style="display: none;">
+                <div class="players-header">
+                    <h3>Players</h3>
+                    <button id="edit-players-btn" class="edit-btn" style="display: none;" title="Edit players">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </div>
+                <div id="video-players" class="video-players">
+                    <!-- Players will be populated here -->
+                </div>
             </div>
         </div>
         

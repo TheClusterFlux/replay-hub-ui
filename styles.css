@@ -491,6 +491,139 @@ body {
   margin-bottom: 12px;
 }
 
+/* Video Title Container */
+.video-title-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.video-title-container:hover .edit-btn {
+  opacity: 1;
+}
+
+/* Description Header */
+.description-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.description-header h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.description-header:hover .edit-btn {
+  opacity: 1;
+}
+
+/* Players Section */
+.players-section {
+  margin-top: 20px;
+  padding: 16px;
+  background: var(--bg-secondary-color);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.players-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.players-header h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.players-header:hover .edit-btn {
+  opacity: 1;
+}
+
+.video-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.player-tag {
+  background: var(--accent-color);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* Enhanced Owner Controls */
+.owner-controls {
+  background: linear-gradient(135deg, #ffd700, #ffed4e);
+  border: 2px solid #f4c430;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.2);
+}
+
+.owner-controls-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: #b8860b;
+}
+
+.owner-controls-header i {
+  color: #ffd700;
+  font-size: 1.2rem;
+}
+
+.owner-controls-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.owner-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.owner-btn.edit-btn {
+  background: #007cba;
+  color: white;
+}
+
+.owner-btn.edit-btn:hover {
+  background: #005c8a;
+  transform: translateY(-1px);
+}
+
+.owner-btn.delete-btn {
+  background: #dc3545;
+  color: white;
+}
+
+.owner-btn.delete-btn:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+}
+
 .video-actions {
   display: flex;
   align-items: center;

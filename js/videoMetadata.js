@@ -258,8 +258,15 @@ window.replayHub = window.replayHub || {};
       updateElement('video-date', formatDate(new Date(videoData.upload_date)));
     }
     
+    // Update uploader
+    const uploaderName = videoData.uploader || videoData.uploader_username || 'Unknown';
+    updateElement('video-uploader', `by ${uploaderName}`);
+    
     // Update description
     updateElement('video-description', videoData.description);
+    
+    // Update players section
+    updatePlayersSection(videoData.players);
     
     // Update like button
     updateLikeButton('like-button', videoData.likes);
@@ -332,17 +339,72 @@ window.replayHub = window.replayHub || {};
   }
 
   /**
+   * Update players section
+   * @param {Array} players - Array of player names
+   */
+  function updatePlayersSection(players) {
+    const playersSection = document.getElementById('players-section');
+    const videoPlayers = document.getElementById('video-players');
+    
+    if (players && players.length > 0) {
+      // Show players section
+      if (playersSection) {
+        playersSection.style.display = 'block';
+      }
+      
+      // Update players content
+      if (videoPlayers) {
+        videoPlayers.innerHTML = players.map(player => 
+          `<span class="player-tag">${player}</span>`
+        ).join('');
+      }
+    } else {
+      // Hide players section if no players
+      if (playersSection) {
+        playersSection.style.display = 'none';
+      }
+    }
+  }
+
+  /**
    * Show edit controls if the current user is the video owner
    * @param {object} videoData - The video metadata object
    */
   function showEditControlsIfOwner(videoData) {
-    const currentUser = window.currentUser;
-    if (!currentUser || !currentUser.isLoggedIn) return;
+    // Get current user from auth module
+    let currentUser = null;
+    if (window.replayHub && window.replayHub.auth) {
+      currentUser = window.replayHub.auth.getCurrentUser();
+    } else if (window.currentUser) {
+      currentUser = window.currentUser;
+    }
     
-    // Check if current user is the uploader
-    const isOwner = videoData.uploader === currentUser.username || 
-                   videoData.uploader === currentUser.name ||
+    if (!currentUser) {
+      console.log('No current user found for owner check');
+      return;
+    }
+    
+    // Check if current user is the uploader using multiple strategies
+    const isOwner = videoData.uploader_id === currentUser.id ||
+                   videoData.uploader_username === currentUser.username ||
+                   videoData.uploader === currentUser.username ||
+                   videoData.uploader === currentUser.display_name ||
                    videoData.user_id === currentUser.id;
+    
+    console.log('Owner check:', {
+      videoData: {
+        uploader_id: videoData.uploader_id,
+        uploader_username: videoData.uploader_username,
+        uploader: videoData.uploader,
+        user_id: videoData.user_id
+      },
+      currentUser: {
+        id: currentUser.id,
+        username: currentUser.username,
+        display_name: currentUser.display_name
+      },
+      isOwner
+    });
     
     if (isOwner) {
       addEditControls(videoData);
@@ -354,56 +416,52 @@ window.replayHub = window.replayHub || {};
    * @param {object} videoData - The video metadata object
    */
   function addEditControls(videoData) {
+    // Show owner controls panel
+    showOwnerControlsPanel();
+    
     // Add edit button to title
     addEditButtonToTitle();
     
     // Add edit button to description
     addEditButtonToDescription();
     
-    // Add edit button for players if the field exists
+    // Add edit button for players
     addEditButtonToPlayers(videoData);
     
-    // Add owner controls section
-    addOwnerControlsSection();
+    // Initialize owner control buttons
+    initializeOwnerControlButtons();
+  }
+
+  /**
+   * Show owner controls panel
+   */
+  function showOwnerControlsPanel() {
+    const ownerControls = document.getElementById('owner-controls');
+    if (ownerControls) {
+      ownerControls.style.display = 'block';
+    }
   }
 
   /**
    * Add edit button to the video title
    */
   function addEditButtonToTitle() {
-    const titleElement = document.getElementById('video-title');
-    if (!titleElement || titleElement.querySelector('.edit-btn')) return;
-    
-    const editBtn = document.createElement('button');
-    editBtn.className = 'edit-btn';
-    editBtn.innerHTML = '<i class="fas fa-edit"></i>';
-    editBtn.title = 'Edit title';
-    editBtn.onclick = () => editTitle();
-    
-    titleElement.style.position = 'relative';
-    titleElement.style.display = 'inline-block';
-    titleElement.appendChild(editBtn);
+    const editBtn = document.getElementById('edit-title-btn');
+    if (editBtn) {
+      editBtn.style.display = 'inline-block';
+      editBtn.onclick = () => editTitle();
+    }
   }
 
   /**
    * Add edit button to the video description
    */
   function addEditButtonToDescription() {
-    const descElement = document.getElementById('video-description');
-    if (!descElement || descElement.querySelector('.edit-btn')) return;
-    
-    const editBtn = document.createElement('button');
-    editBtn.className = 'edit-btn';
-    editBtn.innerHTML = '<i class="fas fa-edit"></i>';
-    editBtn.title = 'Edit description';
-    editBtn.onclick = () => editDescription();
-    
-    // Create wrapper for description and edit button
-    const wrapper = document.createElement('div');
-    wrapper.style.position = 'relative';
-    descElement.parentNode.insertBefore(wrapper, descElement);
-    wrapper.appendChild(descElement);
-    wrapper.appendChild(editBtn);
+    const editBtn = document.getElementById('edit-description-btn');
+    if (editBtn) {
+      editBtn.style.display = 'inline-block';
+      editBtn.onclick = () => editDescription();
+    }
   }
 
   /**
@@ -411,63 +469,43 @@ window.replayHub = window.replayHub || {};
    * @param {object} videoData - The video metadata object
    */
   function addEditButtonToPlayers(videoData) {
-    // Create or find players section
-    let playersSection = document.getElementById('video-players');
-    
-    if (!playersSection) {
-      // Create players section if it doesn't exist
-      const descContainer = document.querySelector('.video-description-container');
-      if (descContainer) {
-        playersSection = document.createElement('div');
-        playersSection.id = 'video-players';
-        playersSection.className = 'video-players-section';
-        playersSection.innerHTML = `
-          <div class="players-label">Players:</div>
-          <div id="players-list" class="players-list">${formatPlayersList(videoData.players || [])}</div>
-        `;
-        descContainer.appendChild(playersSection);
-      }
-    }
-    
-    if (playersSection && !playersSection.querySelector('.edit-btn')) {
-      const editBtn = document.createElement('button');
-      editBtn.className = 'edit-btn';
-      editBtn.innerHTML = '<i class="fas fa-edit"></i>';
-      editBtn.title = 'Edit players';
+    const editBtn = document.getElementById('edit-players-btn');
+    if (editBtn) {
+      editBtn.style.display = 'inline-block';
       editBtn.onclick = () => editPlayers();
-      
-      playersSection.appendChild(editBtn);
     }
   }
 
   /**
-   * Add owner controls section
+   * Initialize owner control buttons
    */
-  function addOwnerControlsSection() {
-    if (document.getElementById('owner-controls')) return;
-    
-    const videoDetails = document.querySelector('.video-details');
-    if (!videoDetails) return;
-    
-    const ownerControls = document.createElement('div');
-    ownerControls.id = 'owner-controls';
-    ownerControls.className = 'owner-controls';
-    ownerControls.innerHTML = `
-      <div class="divider"></div>
-      <div class="owner-controls-header">
-        <h4><i class="fas fa-crown"></i> Owner Controls</h4>
-      </div>
-      <div class="owner-controls-actions">
-        <button id="delete-video-btn" class="danger-btn">
-          <i class="fas fa-trash"></i> Delete Video
-        </button>
-      </div>
-    `;
-    
-    videoDetails.appendChild(ownerControls);
-    
-    // Add event listener for delete button
-    document.getElementById('delete-video-btn').onclick = () => deleteVideo();
+  function initializeOwnerControlButtons() {
+    // Initialize edit metadata button
+    const editMetadataBtn = document.getElementById('edit-metadata-btn');
+    if (editMetadataBtn) {
+      editMetadataBtn.onclick = () => openEditModal();
+    }
+
+    // Initialize delete video button
+    const deleteVideoBtn = document.getElementById('delete-video-btn');
+    if (deleteVideoBtn) {
+      deleteVideoBtn.onclick = () => deleteVideo();
+    }
+  }
+
+  /**
+   * Open edit modal with current video data
+   */
+  function openEditModal() {
+    if (!window.currentVideoData) {
+      showMessage('Video data not available', 'error');
+      return;
+    }
+
+    const title = prompt('Edit Title:', window.currentVideoData.title);
+    if (title !== null && title !== window.currentVideoData.title) {
+      editTitle(title);
+    }
   }
 
   /**
@@ -482,10 +520,14 @@ window.replayHub = window.replayHub || {};
 
   /**
    * Edit video title
+   * @param {string} newTitle - Optional new title, if not provided will prompt user
    */
-  async function editTitle() {
+  async function editTitle(newTitle = null) {
     const currentTitle = window.currentVideoData.title;
-    const newTitle = prompt('Enter new title:', currentTitle);
+    
+    if (newTitle === null) {
+      newTitle = prompt('Enter new title:', currentTitle);
+    }
     
     if (newTitle && newTitle !== currentTitle) {
       try {
@@ -536,10 +578,8 @@ window.replayHub = window.replayHub || {};
         const newPlayers = newPlayersStr.split(',').map(p => p.trim()).filter(p => p);
         const success = await updateVideoField('players', newPlayers);
         if (success) {
-          const playersListElement = document.getElementById('players-list');
-          if (playersListElement) {
-            playersListElement.textContent = formatPlayersList(newPlayers);
-          }
+          // Update the players section
+          updatePlayersSection(newPlayers);
           window.currentVideoData.players = newPlayers;
           showMessage('Players updated successfully!', 'success');
         }
@@ -557,11 +597,22 @@ window.replayHub = window.replayHub || {};
    */
   async function updateVideoField(field, value) {
     try {
+      // Get auth token from auth module
+      let token = null;
+      if (window.replayHub && window.replayHub.auth) {
+        const options = window.replayHub.auth.addAuthToRequest({});
+        token = options.headers?.Authorization?.replace('Bearer ', '');
+      }
+      
+      if (!token) {
+        token = localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token');
+      }
+      
       const response = await fetch(`${BASE_URL}/api/videos/${window.currentVideoData.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token')}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           [field]: value
@@ -569,7 +620,8 @@ window.replayHub = window.replayHub || {};
       });
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
       
       return true;
@@ -588,22 +640,34 @@ window.replayHub = window.replayHub || {};
     }
     
     try {
+      // Get auth token from auth module
+      let token = null;
+      if (window.replayHub && window.replayHub.auth) {
+        const options = window.replayHub.auth.addAuthToRequest({});
+        token = options.headers?.Authorization?.replace('Bearer ', '');
+      }
+      
+      if (!token) {
+        token = localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token');
+      }
+      
       const response = await fetch(`${BASE_URL}/api/videos/${window.currentVideoData.id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token')}`
+          'Authorization': `Bearer ${token}`
         }
       });
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
       
       showMessage('Video deleted successfully!', 'success');
       
       // Redirect to home page after a delay
       setTimeout(() => {
-        window.location.href = '/';
+        window.location.href = 'index.html';
       }, 2000);
       
     } catch (error) {
