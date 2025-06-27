@@ -556,6 +556,11 @@ async function handleProfileUpdate(event) {
     }
 }
 
+// Make form handlers globally accessible
+window.handleLogin = handleLogin;
+window.handleRegister = handleRegister;
+window.handleProfileUpdate = handleProfileUpdate;
+
 // Close modals when clicking outside
 window.onclick = function(event) {
     const modals = ['loginModal', 'registerModal', 'profileModal'];
