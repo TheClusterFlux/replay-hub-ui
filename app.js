@@ -23,9 +23,17 @@ async function initializeAuth() {
     try {
         // Initialize the auth module
         if (window.replayHub && window.replayHub.auth) {
-            const isAuthenticated = await window.replayHub.auth.initAuth();
-            updateLoginStatus(isAuthenticated);
-            return isAuthenticated;
+            // Check if auth module already determined the authentication state
+            if (window.replayHub.authState) {
+                console.log('App: Using cached auth state:', window.replayHub.authState.isAuthenticated);
+                updateLoginStatus(window.replayHub.authState.isAuthenticated);
+                return window.replayHub.authState.isAuthenticated;
+            } else {
+                // Call initAuth if not already done
+                const isAuthenticated = await window.replayHub.auth.initAuth();
+                updateLoginStatus(isAuthenticated);
+                return isAuthenticated;
+            }
         } else {
             console.warn('Auth module not loaded yet, will retry...');
             // Retry after a short delay
@@ -153,12 +161,6 @@ function updateLoginStatus(isLoggedIn) {
     const registerButton = document.getElementById('register-button');
     const uploadButton = document.getElementById('upload-button');
     
-    console.log('Button elements found:', {
-        loginButton: !!loginButton,
-        registerButton: !!registerButton,
-        uploadButton: !!uploadButton
-    });
-    
     // Update current user information
     if (isLoggedIn && window.replayHub && window.replayHub.auth) {
         const user = window.replayHub.auth.getCurrentUser();
@@ -183,11 +185,9 @@ function updateLoginStatus(isLoggedIn) {
     
     // Update UI with login status
     if (loginButton) {
-        console.log('Updating UI, isLoggedIn:', isLoggedIn);
         if (isLoggedIn) {
             // Create profile button if it doesn't exist
             let profileButton = document.getElementById('profile-button');
-            console.log('Profile button exists:', !!profileButton);
             if (!profileButton) {
                 const userActions = document.querySelector('.user-actions');
                 if (userActions) {
@@ -288,34 +288,28 @@ function updateLoginStatus(isLoggedIn) {
             // Hide login/register buttons
             if (loginButton) {
                 loginButton.style.display = 'none';
-                console.log('Login button hidden');
             }
             if (registerButton) {
                 registerButton.style.display = 'none';
-                console.log('Register button hidden');
             }
             
             // Show profile button
             if (profileButton) {
                 profileButton.style.display = 'block';
-                console.log('Profile button shown');
             }
         } else {
             // Show login/register buttons
             if (loginButton) {
                 loginButton.style.display = 'block';
-                console.log('Login button shown');
             }
             if (registerButton) {
                 registerButton.style.display = 'block';
-                console.log('Register button shown');
             }
             
             // Hide and remove profile button
             const profileButton = document.getElementById('profile-button');
             if (profileButton) {
                 profileButton.remove();
-                console.log('Profile button removed');
             }
         }
     }
