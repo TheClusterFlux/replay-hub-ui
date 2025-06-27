@@ -1052,6 +1052,9 @@ function initPage() {
     
     // Add event listeners for the upload modal
     initUploadModal();
+    
+    // Add event listeners for login/register buttons
+    initAuthButtons();
 }
 
 // Initialize the homepage
@@ -1158,6 +1161,26 @@ function initVideoPage() {
         .catch(error => {
             alert('Error loading video.');
         });
+}
+
+// Initialize authentication buttons
+function initAuthButtons() {
+    const loginButton = document.getElementById('login-button');
+    const registerButton = document.getElementById('register-button');
+    
+    if (loginButton) {
+        loginButton.addEventListener('click', () => {
+            console.log('Login button clicked');
+            showLoginModal();
+        });
+    }
+    
+    if (registerButton) {
+        registerButton.addEventListener('click', () => {
+            console.log('Register button clicked');
+            showRegisterModal();
+        });
+    }
 }
 
 // Wait for DOM to be loaded before initializing
