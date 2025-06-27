@@ -1044,17 +1044,18 @@ function createVideoCard(video) {
 function initPage() {
     const path = window.location.pathname;
     
+    // Always initialize authentication buttons first
+    initAuthButtons();
+    
+    // Always initialize upload modal
+    initUploadModal();
+    
+    // Then initialize page-specific functionality
     if (path.endsWith('index.html') || path === '/' || path === '') {
         initHomePage();
     } else if (path.endsWith('video.html')) {
         initVideoPage();
     }
-    
-    // Add event listeners for the upload modal
-    initUploadModal();
-    
-    // Add event listeners for login/register buttons
-    initAuthButtons();
 }
 
 // Initialize the homepage
@@ -1135,10 +1136,18 @@ function filterVideos(searchTerm) {
 function initVideoPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const videoId = urlParams.get('id');
+    
+    // If no video ID is provided, show an error but don't return immediately
+    // This allows other page functionality (like auth buttons) to still work
     if (!videoId) {
-        alert('Error: Video ID not provided.');
+        // Check if we're actually on a video page that should have a video
+        const videoPlayerElement = document.getElementById('video-player');
+        if (videoPlayerElement) {
+            alert('Error: Video ID not provided.');
+        }
         return;
     }
+    
     // Fetch video metadata by short ID
     fetchVideo(videoId)
         .then(video => {
