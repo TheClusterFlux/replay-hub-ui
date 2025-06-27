@@ -4,7 +4,7 @@
  */
 
 // Video page initialization
-function initVideoPage() {
+async function initVideoPage() {
   console.log("Initializing video page...");
   
   // Prevent double initialization
@@ -13,8 +13,8 @@ function initVideoPage() {
   }
   window.videoPageInitialized = true;
   
-  // Initialize authentication UI (from app.js)
-  initVideoPageAuth();
+  // Initialize authentication UI (from app.js) - wait for it to complete
+  await initVideoPageAuth();
   
   // Get URL parameters
   const urlParams = new URLSearchParams(window.location.search);
@@ -37,13 +37,36 @@ function initVideoPage() {
 async function initVideoPageAuth() {
   console.log("Initializing video page authentication...");
   
+  // First wait for auth.js to complete its initialization
+  const waitForAuthModule = () => {
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (window.replayHub && window.replayHub.auth && window.replayHub.authState !== undefined) {
+          clearInterval(checkInterval);
+          console.log('Auth module ready, state:', window.replayHub.authState);
+          resolve();
+        }
+      }, 50);
+      
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        console.warn('Auth module not ready, proceeding anyway');
+        resolve();
+      }, 5000);
+    });
+  };
+  
+  await waitForAuthModule();
+  
   // Wait for app.js functions to be available
   const waitForAppJS = () => {
     return new Promise((resolve) => {
       const checkInterval = setInterval(() => {
         if (typeof initializeAuth === 'function' && 
             typeof initAuthButtons === 'function' && 
-            typeof initUploadModal === 'function') {
+            typeof initUploadModal === 'function' &&
+            typeof updateLoginStatus === 'function') {
           clearInterval(checkInterval);
           resolve();
         }
@@ -63,17 +86,29 @@ async function initVideoPageAuth() {
   // Initialize authentication buttons and upload modal
   if (typeof initAuthButtons === 'function') {
     initAuthButtons();
+    console.log('Auth buttons initialized');
   }
   
   if (typeof initUploadModal === 'function') {
     initUploadModal();
+    console.log('Upload modal initialized');
   }
   
-  // Initialize authentication state
-  if (typeof initializeAuth === 'function') {
-    await initializeAuth();
+  // Check if we already have auth state from auth.js
+  if (window.replayHub && window.replayHub.authState && window.replayHub.authState.isAuthenticated) {
+    console.log('Using cached auth state from auth.js');
+    if (typeof updateLoginStatus === 'function') {
+      updateLoginStatus(true);
+    }
   } else {
-    console.warn('initializeAuth function not available');
+    // Initialize authentication state if not already cached
+    if (typeof initializeAuth === 'function') {
+      console.log('Initializing auth state...');
+      const isAuthenticated = await initializeAuth();
+      console.log('Auth initialization result:', isAuthenticated);
+    } else {
+      console.warn('initializeAuth function not available');
+    }
   }
 }
 
@@ -364,5 +399,10 @@ function waitForModulesReady() {
   });
 }
 
-// Initialize the page as soon as possible
-initVideoPage();
+// Initialize the page when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initVideoPage);
+} else {
+  // DOM is already ready
+  initVideoPage();
+}

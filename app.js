@@ -21,16 +21,19 @@ window.currentUser = currentUser;
 // Auth-related functions
 async function initializeAuth() {
     try {
+        console.log('App: initializeAuth called');
         // Initialize the auth module
         if (window.replayHub && window.replayHub.auth) {
             // Check if auth module already determined the authentication state
             if (window.replayHub.authState) {
-                console.log('App: Using cached auth state:', window.replayHub.authState.isAuthenticated);
+                console.log('App: Using cached auth state:', window.replayHub.authState);
                 updateLoginStatus(window.replayHub.authState.isAuthenticated);
                 return window.replayHub.authState.isAuthenticated;
             } else {
+                console.log('App: No cached auth state, calling initAuth');
                 // Call initAuth if not already done
                 const isAuthenticated = await window.replayHub.auth.initAuth();
+                console.log('App: initAuth result:', isAuthenticated);
                 updateLoginStatus(isAuthenticated);
                 return isAuthenticated;
             }

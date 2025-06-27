@@ -381,21 +381,27 @@ window.replayHub = window.replayHub || {};
     
     // Initialize authentication when module loads
     initAuth().then(isAuthenticated => {
+        console.log('Auth module initialization complete. Authenticated:', isAuthenticated);
         if (isAuthenticated) {
-            console.log('Auth module: User is authenticated, waiting for UI to be ready');
+            console.log('Auth module: User is authenticated, current user:', currentUser);
             // Store the authentication state for later use
-            window.replayHub.authState = { isAuthenticated: true };
+            window.replayHub.authState = { isAuthenticated: true, user: currentUser };
             
             // Try to update UI if function is available, otherwise it will be called by app.js
             if (typeof updateLoginStatus === 'function') {
+                console.log('Auth module: Calling updateLoginStatus(true)');
                 updateLoginStatus(true);
             } else {
                 // Wait for app.js to load and call updateLoginStatus
                 console.log('Auth module: updateLoginStatus not available yet, will be called by app.js');
             }
         } else {
-            window.replayHub.authState = { isAuthenticated: false };
+            console.log('Auth module: User is not authenticated');
+            window.replayHub.authState = { isAuthenticated: false, user: null };
         }
+    }).catch(error => {
+        console.error('Auth module initialization failed:', error);
+        window.replayHub.authState = { isAuthenticated: false, user: null };
     });
     
 })(); 
