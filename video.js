@@ -13,22 +13,73 @@ async function initVideoPage() {
   }
   window.videoPageInitialized = true;
   
-  // Initialize authentication UI (from app.js) - wait for it to complete
-  await initVideoPageAuth();
+  // Show loading state
+  showLoadingState();
   
-  // Get URL parameters
-  const urlParams = new URLSearchParams(window.location.search);
-  const s3Url = urlParams.get('s3_url');
-  const videoId = urlParams.get('id');
-  
-  // If we have an ID but no s3_url, fetch the video metadata first
-  if (videoId && !s3Url) {
-    initializeVideoFromId(videoId);
-    return;
+  try {
+    // Step 1: Initialize authentication completely first
+    await initVideoPageAuth();
+    
+    // Step 2: Get URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const s3Url = urlParams.get('s3_url');
+    const videoId = urlParams.get('id');
+    
+    // Step 3: Fetch video data if needed
+    let videoData = null;
+    if (videoId && !s3Url) {
+      videoData = await initializeVideoFromId(videoId);
+      if (!videoData) return; // Error already handled
+    }
+    
+    // Step 4: Wait for all modules to be ready
+    await waitForModulesReady();
+    
+    // Step 5: Initialize video with complete context (auth + data)
+    await initializeVideoUI(s3Url || (videoData ? videoData.s3_url : null), videoId, videoData);
+    
+    console.log("✅ Video page initialization complete");
+    
+  } catch (error) {
+    console.error("Video page initialization failed:", error);
+    showErrorMessage('Failed to load video page: ' + (error.message || 'Unknown error'));
+  } finally {
+    hideLoadingState();
+  }
+}
+
+/**
+ * Show loading state to prevent multiple renders
+ */
+function showLoadingState() {
+  // Hide video content initially to prevent flash
+  const videoContainer = document.querySelector('.video-container');
+  if (videoContainer) {
+    videoContainer.style.opacity = '0.5';
+    videoContainer.style.pointerEvents = 'none';
   }
   
-  // Start initializing immediately rather than waiting for DOMContentLoaded
-  initializeVideoUI(s3Url, videoId);
+  // Show loading indicator
+  const videoTitle = document.getElementById('video-title');
+  if (videoTitle) {
+    videoTitle.textContent = 'Loading...';
+  }
+  
+  const videoDescription = document.getElementById('video-description');
+  if (videoDescription) {
+    videoDescription.textContent = 'Loading video content...';
+  }
+}
+
+/**
+ * Hide loading state
+ */
+function hideLoadingState() {
+  const videoContainer = document.querySelector('.video-container');
+  if (videoContainer) {
+    videoContainer.style.opacity = '1';
+    videoContainer.style.pointerEvents = 'auto';
+  }
 }
 
 /**
@@ -56,7 +107,7 @@ async function initVideoPageAuth() {
       }, 5000);
     });
   };
-  
+
   await waitForAuthModule();
   
   // Wait for app.js functions to be available
@@ -80,7 +131,7 @@ async function initVideoPageAuth() {
       }, 3000);
     });
   };
-  
+
   await waitForAppJS();
   
   // Initialize authentication buttons and upload modal
@@ -160,8 +211,7 @@ async function initializeVideoFromId(videoId) {
       throw new Error('Video metadata is missing S3 URL');
     }
     
-    // Initialize with the fetched s3_url and full video data
-    initializeVideoUI(videoData.s3_url, videoId, videoData);
+    return videoData;
     
   } catch (error) {
     console.error('Error fetching video metadata:', error);
@@ -205,7 +255,7 @@ async function initializeVideoFromId(videoId) {
       detailedError = `
         <div style="background: #f5f5f5; padding: 15px; border-radius: 4px; margin: 15px 0; text-align: left;">
           <h4>🔧 Server Error</h4>
-          <p><strong>The backend service encountered an error.</strong></p>
+          <p><strong>The video service is experiencing issues.</strong></p>
           <p>This usually means there's an issue with the server configuration or database connection.</p>
         </div>
       `;
@@ -248,6 +298,8 @@ async function initializeVideoFromId(videoId) {
     } else {
       alert(`Error: ${errorMessage}`);
     }
+    
+    return null;
   }
 }
 

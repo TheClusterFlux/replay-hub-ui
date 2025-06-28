@@ -602,6 +602,7 @@ body {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  font-size: 14px;
 }
 
 .owner-btn.edit-btn {
@@ -611,6 +612,16 @@ body {
 
 .owner-btn.edit-btn:hover {
   background: #005c8a;
+  transform: translateY(-1px);
+}
+
+.owner-btn.more-btn {
+  background: #6c757d;
+  color: white;
+}
+
+.owner-btn.more-btn:hover {
+  background: #5a6268;
   transform: translateY(-1px);
 }
 
@@ -1357,35 +1368,7 @@ textarea.form-control {
   }
 }
 
-/* Video owner edit controls */
-.edit-btn {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 10;
-}
-
-.edit-btn:hover {
-  background: rgba(0, 0, 0, 0.9);
-}
-
-#video-title:hover .edit-btn,
-.video-description-container:hover .edit-btn,
-.video-players-section:hover .edit-btn {
-  opacity: 1;
-}
+/* Video owner edit controls - cleaned up and moved to enhanced section below */
 
 .video-players-section {
   margin: 15px 0;
@@ -1407,32 +1390,7 @@ textarea.form-control {
   font-size: 14px;
 }
 
-.owner-controls {
-  margin-top: 20px;
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid #ffc107;
-}
-
-.owner-controls-header {
-  margin-bottom: 15px;
-}
-
-.owner-controls-header h4 {
-  color: #856404;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 16px;
-}
-
-.owner-controls-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
+/* Old owner-controls styles removed - replaced with enhanced version */
 
 .danger-btn {
   background: #dc3545;
@@ -1481,12 +1439,150 @@ textarea.form-control {
     color: #aaaaaa;
   }
   
+  /* Dark theme owner controls moved to enhanced version */
+}
+
+/* More Actions Section */
+.more-actions {
+  margin-top: 12px;
+  animation: slideDown 0.2s ease-out;
+}
+
+.more-actions-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #b8860b, transparent);
+  margin: 12px 0;
+}
+
+.danger-zone {
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.danger-zone-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #dc3545;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.danger-zone-title i {
+  color: #dc3545;
+}
+
+.danger-warning {
+  font-size: 12px;
+  color: #6c757d;
+  margin: 8px 0 0 0;
+  font-style: italic;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Enhanced Edit Button Styling */
+.edit-btn {
+  background: rgba(0, 124, 186, 0.1);
+  border: 1px solid rgba(0, 124, 186, 0.3);
+  color: #007cba;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.edit-btn:hover {
+  background: rgba(0, 124, 186, 0.2);
+  border-color: #007cba;
+  transform: translateY(-1px);
+}
+
+.edit-btn i {
+  font-size: 11px;
+}
+
+/* Show edit buttons on hover of their containers */
+.video-title-container:hover .edit-btn,
+.description-header:hover .edit-btn,
+.players-header:hover .edit-btn {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+/* Ensure containers have relative positioning for proper edit button placement */
+.video-title-container,
+.description-header,
+.players-header {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.video-title-container h1,
+.description-header h3,
+.players-header h3 {
+  margin: 0;
+  flex: 1;
+}
+
+/* Dark theme support for enhanced owner controls */
+@media (prefers-color-scheme: dark) {
   .owner-controls {
-    background-color: #2a2a2a;
-    border-left-color: #ffc107;
+    background: linear-gradient(135deg, #3d3d00, #4d4d00);
+    border-color: #666600;
+    color: #ffffff;
   }
   
-  .owner-controls-header h4 {
-    color: #ffc107;
+  .owner-controls-header {
+    color: #ffff99;
+  }
+  
+  .owner-controls-header i {
+    color: #ffff99;
+  }
+  
+  .danger-zone {
+    background: rgba(220, 53, 69, 0.2);
+    border-color: rgba(220, 53, 69, 0.5);
+  }
+  
+  .danger-warning {
+    color: #aaa;
+  }
+  
+  .more-actions-divider {
+    background: linear-gradient(90deg, transparent, #666600, transparent);
+  }
+  
+  .edit-btn {
+    background: rgba(0, 124, 186, 0.2);
+    border-color: rgba(0, 124, 186, 0.5);
+    color: #87ceeb;
+  }
+  
+  .edit-btn:hover {
+    background: rgba(0, 124, 186, 0.3);
+    border-color: #87ceeb;
   }
 }

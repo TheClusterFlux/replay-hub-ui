@@ -441,7 +441,7 @@ window.replayHub = window.replayHub || {};
   function addEditControls(videoData) {
     console.log('🎛️ Adding edit controls for video owner...');
     
-    // Show owner controls panel
+    // Show owner controls panel with improved layout
     showOwnerControlsPanel();
     
     // Add edit button to title
@@ -460,13 +460,59 @@ window.replayHub = window.replayHub || {};
   }
 
   /**
-   * Show owner controls panel
+   * Show owner controls panel with improved layout
    */
   function showOwnerControlsPanel() {
     console.log('👑 Showing owner controls panel...');
     const ownerControls = document.getElementById('owner-controls');
     if (ownerControls) {
+      // Update the owner controls HTML with better layout
+      ownerControls.innerHTML = `
+        <div class="owner-controls-header">
+          <i class="fas fa-crown"></i>
+          <span>Owner Controls</span>
+        </div>
+        <div class="owner-controls-actions">
+          <button id="edit-metadata-btn" class="owner-btn edit-btn">
+            <i class="fas fa-edit"></i>
+            Edit Video
+          </button>
+          <button id="show-more-btn" class="owner-btn more-btn">
+            <i class="fas fa-ellipsis-h"></i>
+            More
+          </button>
+        </div>
+        <div id="more-actions" class="more-actions" style="display: none;">
+          <div class="more-actions-divider"></div>
+          <div class="danger-zone">
+            <h4 class="danger-zone-title">
+              <i class="fas fa-exclamation-triangle"></i>
+              Danger Zone
+            </h4>
+            <button id="delete-video-btn" class="owner-btn delete-btn">
+              <i class="fas fa-trash"></i>
+              Delete Video
+            </button>
+            <p class="danger-warning">This action cannot be undone</p>
+          </div>
+        </div>
+      `;
+      
       ownerControls.style.display = 'block';
+      
+      // Add event listener for the "More" button
+      const showMoreBtn = document.getElementById('show-more-btn');
+      const moreActions = document.getElementById('more-actions');
+      if (showMoreBtn && moreActions) {
+        showMoreBtn.onclick = () => {
+          const isVisible = moreActions.style.display !== 'none';
+          moreActions.style.display = isVisible ? 'none' : 'block';
+          showMoreBtn.innerHTML = isVisible 
+            ? '<i class="fas fa-ellipsis-h"></i> More'
+            : '<i class="fas fa-chevron-up"></i> Less';
+        };
+      }
+      
       console.log('✅ Owner controls panel shown');
     } else {
       console.log('❌ Owner controls panel not found in DOM');
@@ -480,7 +526,9 @@ window.replayHub = window.replayHub || {};
     console.log('📝 Adding title edit button...');
     const editBtn = document.getElementById('edit-title-btn');
     if (editBtn) {
-      editBtn.style.display = 'inline-block';
+      editBtn.style.display = 'inline-flex';
+      editBtn.style.alignItems = 'center';
+      editBtn.style.marginLeft = '8px';
       editBtn.onclick = () => editTitle();
       console.log('✅ Title edit button shown');
     } else {
@@ -492,10 +540,16 @@ window.replayHub = window.replayHub || {};
    * Add edit button to the video description
    */
   function addEditButtonToDescription() {
+    console.log('📄 Adding description edit button...');
     const editBtn = document.getElementById('edit-description-btn');
     if (editBtn) {
-      editBtn.style.display = 'inline-block';
+      editBtn.style.display = 'inline-flex';
+      editBtn.style.alignItems = 'center';
+      editBtn.style.marginLeft = '8px';
       editBtn.onclick = () => editDescription();
+      console.log('✅ Description edit button shown');
+    } else {
+      console.log('❌ Description edit button not found in DOM');
     }
   }
 
@@ -504,10 +558,16 @@ window.replayHub = window.replayHub || {};
    * @param {object} videoData - The video metadata object
    */
   function addEditButtonToPlayers(videoData) {
+    console.log('👥 Adding players edit button...');
     const editBtn = document.getElementById('edit-players-btn');
     if (editBtn) {
-      editBtn.style.display = 'inline-block';
+      editBtn.style.display = 'inline-flex';
+      editBtn.style.alignItems = 'center';
+      editBtn.style.marginLeft = '8px';
       editBtn.onclick = () => editPlayers();
+      console.log('✅ Players edit button shown');
+    } else {
+      console.log('❌ Players edit button not found in DOM');
     }
   }
 
@@ -515,16 +575,20 @@ window.replayHub = window.replayHub || {};
    * Initialize owner control buttons
    */
   function initializeOwnerControlButtons() {
+    console.log('🔧 Initializing owner control buttons...');
+    
     // Initialize edit metadata button
     const editMetadataBtn = document.getElementById('edit-metadata-btn');
     if (editMetadataBtn) {
       editMetadataBtn.onclick = () => openEditModal();
+      console.log('✅ Edit metadata button initialized');
     }
 
-    // Initialize delete video button
+    // Initialize delete video button (will be in the "more" section)
     const deleteVideoBtn = document.getElementById('delete-video-btn');
     if (deleteVideoBtn) {
       deleteVideoBtn.onclick = () => deleteVideo();
+      console.log('✅ Delete video button initialized');
     }
   }
 
@@ -537,9 +601,29 @@ window.replayHub = window.replayHub || {};
       return;
     }
 
-    const title = prompt('Edit Title:', window.currentVideoData.title);
-    if (title !== null && title !== window.currentVideoData.title) {
-      editTitle(title);
+    // Create a simple inline editing experience
+    const actions = [
+      { label: 'Edit Title', action: () => editTitle() },
+      { label: 'Edit Description', action: () => editDescription() },
+      { label: 'Edit Players', action: () => editPlayers() }
+    ];
+
+    const choice = prompt('What would you like to edit?\n\n1. Title\n2. Description\n3. Players\n\nEnter 1, 2, or 3:');
+    
+    switch(choice) {
+      case '1':
+        editTitle();
+        break;
+      case '2':
+        editDescription();
+        break;
+      case '3':
+        editPlayers();
+        break;
+      default:
+        if (choice !== null) {
+          showMessage('Invalid choice. Please click "Edit Video" again and enter 1, 2, or 3.', 'error');
+        }
     }
   }
 
