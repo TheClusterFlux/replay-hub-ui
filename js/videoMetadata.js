@@ -371,18 +371,44 @@ window.replayHub = window.replayHub || {};
    * @param {object} videoData - The video metadata object
    */
   function showEditControlsIfOwner(videoData) {
+    console.log('🔍 Checking video ownership...');
+    
     // Get current user from auth module
     let currentUser = null;
     if (window.replayHub && window.replayHub.auth) {
       currentUser = window.replayHub.auth.getCurrentUser();
+      console.log('📱 Got user from replayHub.auth:', currentUser);
     } else if (window.currentUser) {
       currentUser = window.currentUser;
+      console.log('📱 Got user from window.currentUser:', currentUser);
     }
     
     if (!currentUser) {
-      console.log('No current user found for owner check');
+      console.log('❌ No current user found for owner check');
+      console.log('Auth state:', {
+        'window.replayHub': !!window.replayHub,
+        'window.replayHub.auth': !!(window.replayHub && window.replayHub.auth),
+        'window.replayHub.authState': window.replayHub?.authState,
+        'window.currentUser': !!window.currentUser
+      });
       return;
     }
+    
+    console.log('📹 Video data for ownership check:', {
+      id: videoData.id,
+      uploader_id: videoData.uploader_id,
+      uploader_username: videoData.uploader_username,
+      uploader: videoData.uploader,
+      user_id: videoData.user_id,
+      title: videoData.title
+    });
+    
+    console.log('👤 Current user data:', {
+      id: currentUser.id,
+      username: currentUser.username,
+      display_name: currentUser.display_name,
+      email: currentUser.email
+    });
     
     // Check if current user is the uploader using multiple strategies
     const isOwner = videoData.uploader_id === currentUser.id ||
@@ -391,23 +417,20 @@ window.replayHub = window.replayHub || {};
                    videoData.uploader === currentUser.display_name ||
                    videoData.user_id === currentUser.id;
     
-    console.log('Owner check:', {
-      videoData: {
-        uploader_id: videoData.uploader_id,
-        uploader_username: videoData.uploader_username,
-        uploader: videoData.uploader,
-        user_id: videoData.user_id
-      },
-      currentUser: {
-        id: currentUser.id,
-        username: currentUser.username,
-        display_name: currentUser.display_name
-      },
-      isOwner
+    console.log('🔐 Ownership check result:', {
+      'uploader_id === currentUser.id': videoData.uploader_id === currentUser.id,
+      'uploader_username === currentUser.username': videoData.uploader_username === currentUser.username,
+      'uploader === currentUser.username': videoData.uploader === currentUser.username,
+      'uploader === currentUser.display_name': videoData.uploader === currentUser.display_name,
+      'user_id === currentUser.id': videoData.user_id === currentUser.id,
+      'FINAL_RESULT': isOwner
     });
     
     if (isOwner) {
+      console.log('✅ User is owner! Adding edit controls...');
       addEditControls(videoData);
+    } else {
+      console.log('❌ User is not owner. No edit controls will be shown.');
     }
   }
 
@@ -416,6 +439,8 @@ window.replayHub = window.replayHub || {};
    * @param {object} videoData - The video metadata object
    */
   function addEditControls(videoData) {
+    console.log('🎛️ Adding edit controls for video owner...');
+    
     // Show owner controls panel
     showOwnerControlsPanel();
     
@@ -430,15 +455,21 @@ window.replayHub = window.replayHub || {};
     
     // Initialize owner control buttons
     initializeOwnerControlButtons();
+    
+    console.log('✅ Edit controls setup complete!');
   }
 
   /**
    * Show owner controls panel
    */
   function showOwnerControlsPanel() {
+    console.log('👑 Showing owner controls panel...');
     const ownerControls = document.getElementById('owner-controls');
     if (ownerControls) {
       ownerControls.style.display = 'block';
+      console.log('✅ Owner controls panel shown');
+    } else {
+      console.log('❌ Owner controls panel not found in DOM');
     }
   }
 
@@ -446,10 +477,14 @@ window.replayHub = window.replayHub || {};
    * Add edit button to the video title
    */
   function addEditButtonToTitle() {
+    console.log('📝 Adding title edit button...');
     const editBtn = document.getElementById('edit-title-btn');
     if (editBtn) {
       editBtn.style.display = 'inline-block';
       editBtn.onclick = () => editTitle();
+      console.log('✅ Title edit button shown');
+    } else {
+      console.log('❌ Title edit button not found in DOM');
     }
   }
 

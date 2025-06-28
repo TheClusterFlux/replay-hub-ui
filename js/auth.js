@@ -106,9 +106,10 @@ window.replayHub = window.replayHub || {};
             if (!tokenToVerify) return false;
             
             const response = await fetch(`${API_BASE}/api/auth/verify-token`, {
-                method: 'GET',
+                method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${tokenToVerify}`
+                    'Authorization': `Bearer ${tokenToVerify}`,
+                    'Content-Type': 'application/json'
                 }
             });
             
