@@ -479,7 +479,9 @@ body {
 }
 
 .video-details {
+  flex: 1;
   padding: 16px;
+  position: relative;
   background-color: var(--bg-secondary-color);
   border-radius: 12px;
   margin-bottom: 16px;
@@ -562,78 +564,37 @@ body {
   font-weight: 500;
 }
 
-/* Enhanced Owner Controls */
-.owner-controls {
-  background: linear-gradient(135deg, #ffd700, #ffed4e);
-  border: 2px solid #f4c430;
-  border-radius: 12px;
-  padding: 16px;
-  margin: 16px 0;
-  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.2);
+/* Subtle Owner Controls */
+.subtle-owner-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
 }
 
-.owner-controls-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  font-weight: 600;
-  color: #b8860b;
-}
-
-.owner-controls-header i {
-  color: #ffd700;
-  font-size: 1.2rem;
-}
-
-.owner-controls-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.owner-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+.subtle-more-options-btn {
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
   border: none;
-  border-radius: 6px;
-  font-weight: 500;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 14px;
 }
 
-.owner-btn.edit-btn {
-  background: #007cba;
-  color: white;
-}
-
-.owner-btn.edit-btn:hover {
-  background: #005c8a;
-  transform: translateY(-1px);
+.subtle-more-options-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.1);
 }
 
 /* More Options Container */
 .more-options-container {
   position: relative;
-}
-
-.owner-btn.more-options-btn {
-  background: #6c757d;
-  color: white;
-  padding: 8px 12px;
-  border-radius: 50%;
-  width: 36px;
-  height: 36px;
-  justify-content: center;
-}
-
-.owner-btn.more-options-btn:hover {
-  background: #5a6268;
-  transform: translateY(-1px);
 }
 
 .more-options-menu {
@@ -647,6 +608,7 @@ body {
   z-index: 1000;
   min-width: 180px;
   animation: slideDown 0.2s ease-out;
+  margin-top: 8px;
 }
 
 .more-option-item {
@@ -1765,18 +1727,13 @@ textarea.form-control {
 
 /* Dark theme support for enhanced owner controls */
 @media (prefers-color-scheme: dark) {
-  .owner-controls {
-    background: linear-gradient(135deg, #3d3d00, #4d4d00);
-    border-color: #666600;
-    color: #ffffff;
+  .subtle-more-options-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
   }
   
-  .owner-controls-header {
-    color: #ffff99;
-  }
-  
-  .owner-controls-header i {
-    color: #ffff99;
+  .subtle-more-options-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
   }
   
   .more-options-menu,

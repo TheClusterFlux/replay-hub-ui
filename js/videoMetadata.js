@@ -14,7 +14,8 @@ window.replayHub = window.replayHub || {};
   }
 
   // Get utility functions from the utils module
-  const { BASE_URL, formatViews, formatDate, formatVideoTitle, extractUUID } = window.replayHub.utils;
+  const { formatViews, formatDate, formatVideoTitle, extractUUID } = window.replayHub.utils;
+  const BASE_URL = window.BASE_URL;
 
   /**
    * Fetch video details from the server
@@ -466,22 +467,18 @@ window.replayHub = window.replayHub || {};
     console.log('👑 Showing owner controls panel...');
     const ownerControls = document.getElementById('owner-controls');
     if (ownerControls) {
-      // Update the owner controls HTML with subtle more options
+      // Update the owner controls HTML with just the subtle more options
       ownerControls.innerHTML = `
-        <div class="owner-controls-header">
-          <i class="fas fa-crown"></i>
-          <span>Owner Controls</span>
-        </div>
-        <div class="owner-controls-actions">
-          <button id="edit-metadata-btn" class="owner-btn edit-btn">
-            <i class="fas fa-edit"></i>
-            Quick Edit
-          </button>
+        <div class="subtle-owner-controls">
           <div class="more-options-container">
-            <button id="more-options-btn" class="owner-btn more-options-btn">
+            <button id="more-options-btn" class="subtle-more-options-btn" title="Owner options">
               <i class="fas fa-ellipsis-h"></i>
             </button>
             <div id="more-options-menu" class="more-options-menu" style="display: none;">
+              <button id="edit-metadata-btn" class="more-option-item">
+                <i class="fas fa-edit"></i>
+                Quick Edit
+              </button>
               <button id="delete-video-btn" class="more-option-item delete-option">
                 <i class="fas fa-trash"></i>
                 Delete Video
@@ -871,7 +868,7 @@ window.replayHub = window.replayHub || {};
         token = localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token');
       }
       
-      const response = await fetch(`${BASE_URL}/api/videos/${window.currentVideoData.id}`, {
+      const response = await fetch(`${window.BASE_URL}/api/videos/${window.currentVideoData.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -906,6 +903,48 @@ window.replayHub = window.replayHub || {};
       window.showMessage(message, type);
     } else {
       alert(message);
+    }
+  }
+
+  /**
+   * Update a video field on the server
+   * @param {string} field - The field to update
+   * @param {any} value - The new value
+   * @returns {Promise<boolean>} - Success status
+   */
+  async function updateVideoField(field, value) {
+    try {
+      // Get auth token from auth module
+      let token = null;
+      if (window.replayHub && window.replayHub.auth) {
+        const options = window.replayHub.auth.addAuthToRequest({});
+        token = options.headers?.Authorization?.replace('Bearer ', '');
+      }
+      
+      if (!token) {
+        token = localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token');
+      }
+      
+             const response = await fetch(`${window.BASE_URL}/api/videos/${window.currentVideoData.id}`, {
+         method: 'PUT',
+         headers: {
+           'Content-Type': 'application/json',
+           'Authorization': `Bearer ${token}`
+         },
+        body: JSON.stringify({
+          [field]: value
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating video field:', error);
+      throw error;
     }
   }
 
