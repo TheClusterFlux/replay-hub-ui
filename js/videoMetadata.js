@@ -623,14 +623,18 @@ window.replayHub = window.replayHub || {};
     menu.querySelectorAll('.quick-edit-option').forEach((option, index) => {
       option.onclick = () => {
         actions[index].action();
-        document.body.removeChild(menu);
+        if (document.body.contains(menu)) {
+          document.body.removeChild(menu);
+        }
       };
     });
 
     // Close menu when clicking outside
     const closeMenu = (e) => {
       if (!menu.contains(e.target) && !editBtn.contains(e.target)) {
-        document.body.removeChild(menu);
+        if (document.body.contains(menu)) {
+          document.body.removeChild(menu);
+        }
         document.removeEventListener('click', closeMenu);
       }
     };
