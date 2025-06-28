@@ -18,6 +18,25 @@ let currentUser = {
 // Make current user available globally
 window.currentUser = currentUser;
 
+// Make essential functions available globally immediately
+window.initializeAuth = initializeAuth;
+window.initAuthButtons = initAuthButtons;
+window.initUploadModal = initUploadModal;
+window.updateLoginStatus = updateLoginStatus;
+window.showMessage = showMessage;
+window.login = function() {
+    console.log('Login function called - opening login modal');
+    showLoginModal();
+};
+window.register = function() {
+    console.log('Register function called - opening register modal');
+    showRegisterModal();
+};
+window.logout = function() {
+    console.log('Logout function called');
+    logoutUser();
+};
+
 // Auth-related functions
 async function initializeAuth() {
     try {
@@ -138,22 +157,6 @@ async function logoutUser() {
         updateLoginStatus(false);
     }
 }
-
-// Make login, register, and logout functions globally accessible
-window.login = function() {
-    console.log('Login function called - opening login modal');
-    showLoginModal();
-};
-
-window.register = function() {
-    console.log('Register function called - opening register modal');
-    showRegisterModal();
-};
-
-window.logout = function() {
-    console.log('Logout function called');
-    logoutUser();
-};
 
 // Use the global functions for UI event handlers
 function login() {
@@ -578,12 +581,6 @@ window.handleProfileUpdate = handleProfileUpdate;
 window.showLoginModal = showLoginModal;
 window.showRegisterModal = showRegisterModal;
 window.showProfileModal = showProfileModal;
-
-// Make initialization functions globally accessible for video page
-window.initializeAuth = initializeAuth;
-window.initAuthButtons = initAuthButtons;
-window.initUploadModal = initUploadModal;
-window.updateLoginStatus = updateLoginStatus;
 
 // Close modals when clicking outside
 window.onclick = function(event) {

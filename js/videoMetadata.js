@@ -466,7 +466,7 @@ window.replayHub = window.replayHub || {};
     console.log('👑 Showing owner controls panel...');
     const ownerControls = document.getElementById('owner-controls');
     if (ownerControls) {
-      // Update the owner controls HTML with better layout
+      // Update the owner controls HTML with subtle more options
       ownerControls.innerHTML = `
         <div class="owner-controls-header">
           <i class="fas fa-crown"></i>
@@ -475,42 +475,40 @@ window.replayHub = window.replayHub || {};
         <div class="owner-controls-actions">
           <button id="edit-metadata-btn" class="owner-btn edit-btn">
             <i class="fas fa-edit"></i>
-            Edit Video
+            Quick Edit
           </button>
-          <button id="show-more-btn" class="owner-btn more-btn">
-            <i class="fas fa-ellipsis-h"></i>
-            More
-          </button>
-        </div>
-        <div id="more-actions" class="more-actions" style="display: none;">
-          <div class="more-actions-divider"></div>
-          <div class="danger-zone">
-            <h4 class="danger-zone-title">
-              <i class="fas fa-exclamation-triangle"></i>
-              Danger Zone
-            </h4>
-            <button id="delete-video-btn" class="owner-btn delete-btn">
-              <i class="fas fa-trash"></i>
-              Delete Video
+          <div class="more-options-container">
+            <button id="more-options-btn" class="owner-btn more-options-btn">
+              <i class="fas fa-ellipsis-h"></i>
             </button>
-            <p class="danger-warning">This action cannot be undone</p>
+            <div id="more-options-menu" class="more-options-menu" style="display: none;">
+              <button id="delete-video-btn" class="more-option-item delete-option">
+                <i class="fas fa-trash"></i>
+                Delete Video
+              </button>
+            </div>
           </div>
         </div>
       `;
       
       ownerControls.style.display = 'block';
       
-      // Add event listener for the "More" button
-      const showMoreBtn = document.getElementById('show-more-btn');
-      const moreActions = document.getElementById('more-actions');
-      if (showMoreBtn && moreActions) {
-        showMoreBtn.onclick = () => {
-          const isVisible = moreActions.style.display !== 'none';
-          moreActions.style.display = isVisible ? 'none' : 'block';
-          showMoreBtn.innerHTML = isVisible 
-            ? '<i class="fas fa-ellipsis-h"></i> More'
-            : '<i class="fas fa-chevron-up"></i> Less';
+      // Add event listener for the "More Options" button
+      const moreOptionsBtn = document.getElementById('more-options-btn');
+      const moreOptionsMenu = document.getElementById('more-options-menu');
+      if (moreOptionsBtn && moreOptionsMenu) {
+        moreOptionsBtn.onclick = (e) => {
+          e.stopPropagation();
+          const isVisible = moreOptionsMenu.style.display !== 'none';
+          moreOptionsMenu.style.display = isVisible ? 'none' : 'block';
         };
+        
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+          if (!moreOptionsBtn.contains(e.target) && !moreOptionsMenu.contains(e.target)) {
+            moreOptionsMenu.style.display = 'none';
+          }
+        });
       }
       
       console.log('✅ Owner controls panel shown');
@@ -529,7 +527,7 @@ window.replayHub = window.replayHub || {};
       editBtn.style.display = 'inline-flex';
       editBtn.style.alignItems = 'center';
       editBtn.style.marginLeft = '8px';
-      editBtn.onclick = () => editTitle();
+      editBtn.onclick = () => startInlineEdit('title');
       console.log('✅ Title edit button shown');
     } else {
       console.log('❌ Title edit button not found in DOM');
@@ -546,7 +544,7 @@ window.replayHub = window.replayHub || {};
       editBtn.style.display = 'inline-flex';
       editBtn.style.alignItems = 'center';
       editBtn.style.marginLeft = '8px';
-      editBtn.onclick = () => editDescription();
+      editBtn.onclick = () => startInlineEdit('description');
       console.log('✅ Description edit button shown');
     } else {
       console.log('❌ Description edit button not found in DOM');
@@ -564,7 +562,7 @@ window.replayHub = window.replayHub || {};
       editBtn.style.display = 'inline-flex';
       editBtn.style.alignItems = 'center';
       editBtn.style.marginLeft = '8px';
-      editBtn.onclick = () => editPlayers();
+      editBtn.onclick = () => startInlineEdit('players');
       console.log('✅ Players edit button shown');
     } else {
       console.log('❌ Players edit button not found in DOM');
@@ -577,177 +575,280 @@ window.replayHub = window.replayHub || {};
   function initializeOwnerControlButtons() {
     console.log('🔧 Initializing owner control buttons...');
     
-    // Initialize edit metadata button
+    // Initialize edit metadata button (for quick access to all fields)
     const editMetadataBtn = document.getElementById('edit-metadata-btn');
     if (editMetadataBtn) {
-      editMetadataBtn.onclick = () => openEditModal();
+      editMetadataBtn.onclick = () => showQuickEditMenu();
       console.log('✅ Edit metadata button initialized');
     }
 
-    // Initialize delete video button (will be in the "more" section)
+    // Initialize delete video button (will be in the more options menu)
     const deleteVideoBtn = document.getElementById('delete-video-btn');
     if (deleteVideoBtn) {
-      deleteVideoBtn.onclick = () => deleteVideo();
+      deleteVideoBtn.onclick = () => confirmDeleteVideo();
       console.log('✅ Delete video button initialized');
     }
   }
 
   /**
-   * Open edit modal with current video data
+   * Show quick edit menu
    */
-  function openEditModal() {
+  function showQuickEditMenu() {
+    const actions = [
+      { label: 'Edit Title', action: () => startInlineEdit('title') },
+      { label: 'Edit Description', action: () => startInlineEdit('description') },
+      { label: 'Edit Players', action: () => startInlineEdit('players') }
+    ];
+
+    // Create a simple dropdown menu
+    const menu = document.createElement('div');
+    menu.className = 'quick-edit-menu';
+    menu.innerHTML = `
+      <div class="quick-edit-header">Quick Edit</div>
+      ${actions.map(action => `
+        <button class="quick-edit-option" data-action="${action.label}">
+          ${action.label}
+        </button>
+      `).join('')}
+    `;
+
+    // Position near the edit button
+    const editBtn = document.getElementById('edit-metadata-btn');
+    const rect = editBtn.getBoundingClientRect();
+    menu.style.position = 'absolute';
+    menu.style.top = (rect.bottom + 5) + 'px';
+    menu.style.left = rect.left + 'px';
+    menu.style.zIndex = '1000';
+
+    document.body.appendChild(menu);
+
+    // Add click handlers
+    menu.querySelectorAll('.quick-edit-option').forEach((option, index) => {
+      option.onclick = () => {
+        actions[index].action();
+        document.body.removeChild(menu);
+      };
+    });
+
+    // Close menu when clicking outside
+    const closeMenu = (e) => {
+      if (!menu.contains(e.target) && !editBtn.contains(e.target)) {
+        document.body.removeChild(menu);
+        document.removeEventListener('click', closeMenu);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', closeMenu), 100);
+  }
+
+  /**
+   * Start inline editing for a field
+   * @param {string} field - The field to edit ('title', 'description', 'players')
+   */
+  function startInlineEdit(field) {
+    console.log(`🖊️ Starting inline edit for ${field}`);
+    
+    let elementId, currentValue, isTextarea = false;
+    
+    switch (field) {
+      case 'title':
+        elementId = 'video-title';
+        currentValue = window.currentVideoData?.title || '';
+        break;
+      case 'description':
+        elementId = 'video-description';
+        currentValue = window.currentVideoData?.description || '';
+        isTextarea = true;
+        break;
+      case 'players':
+        elementId = 'video-players';
+        currentValue = window.currentVideoData?.players?.join(', ') || '';
+        break;
+      default:
+        console.error('Unknown field:', field);
+        return;
+    }
+    
+    const element = document.getElementById(elementId);
+    if (!element) {
+      console.error(`Element not found: ${elementId}`);
+      return;
+    }
+    
+    // Store original content
+    const originalContent = element.innerHTML;
+    
+    // Create input element
+    const inputElement = document.createElement(isTextarea ? 'textarea' : 'input');
+    inputElement.type = isTextarea ? undefined : 'text';
+    inputElement.value = currentValue;
+    inputElement.className = `inline-edit-${field}`;
+    
+    // Style the input
+    inputElement.style.width = '100%';
+    inputElement.style.fontSize = window.getComputedStyle(element).fontSize;
+    inputElement.style.fontFamily = window.getComputedStyle(element).fontFamily;
+    inputElement.style.color = window.getComputedStyle(element).color;
+    inputElement.style.background = 'rgba(255, 255, 255, 0.1)';
+    inputElement.style.border = '2px solid #007cba';
+    inputElement.style.borderRadius = '4px';
+    inputElement.style.padding = '8px';
+    inputElement.style.outline = 'none';
+    
+    if (isTextarea) {
+      inputElement.style.minHeight = '80px';
+      inputElement.style.resize = 'vertical';
+    }
+    
+    // Replace element content with input
+    element.innerHTML = '';
+    element.appendChild(inputElement);
+    
+    // Add save/cancel buttons
+    const buttonContainer = document.createElement('div');
+    buttonContainer.className = 'inline-edit-buttons';
+    buttonContainer.innerHTML = `
+      <button class="inline-edit-save" title="Save">
+        <i class="fas fa-check"></i>
+      </button>
+      <button class="inline-edit-cancel" title="Cancel">
+        <i class="fas fa-times"></i>
+      </button>
+    `;
+    element.appendChild(buttonContainer);
+    
+    // Focus and select the input
+    inputElement.focus();
+    inputElement.select();
+    
+    // Handle save
+    const saveEdit = async () => {
+      const newValue = inputElement.value.trim();
+      
+      if (newValue !== currentValue) {
+        try {
+          let processedValue = newValue;
+          if (field === 'players') {
+            processedValue = newValue.split(',').map(p => p.trim()).filter(p => p);
+          }
+          
+          const success = await updateVideoField(field, processedValue);
+          if (success) {
+            // Update the global video data
+            if (field === 'players') {
+              window.currentVideoData.players = processedValue;
+              updatePlayersSection(processedValue);
+            } else {
+              window.currentVideoData[field] = newValue;
+              element.innerHTML = newValue;
+            }
+            
+            if (field === 'title') {
+              document.title = `${newValue} - Replay Hub`;
+            }
+            
+            showMessage(`${field.charAt(0).toUpperCase() + field.slice(1)} updated successfully!`, 'success');
+          } else {
+            throw new Error('Update failed');
+          }
+        } catch (error) {
+          console.error(`Error updating ${field}:`, error);
+          showMessage(`Failed to update ${field}`, 'error');
+          element.innerHTML = originalContent;
+        }
+      } else {
+        // No changes, just restore
+        element.innerHTML = originalContent;
+      }
+    };
+    
+    // Handle cancel
+    const cancelEdit = () => {
+      element.innerHTML = originalContent;
+    };
+    
+    // Add event listeners
+    buttonContainer.querySelector('.inline-edit-save').onclick = saveEdit;
+    buttonContainer.querySelector('.inline-edit-cancel').onclick = cancelEdit;
+    
+    // Save on Enter (except for textarea), cancel on Escape
+    inputElement.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !isTextarea) {
+        e.preventDefault();
+        saveEdit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        cancelEdit();
+      }
+    });
+  }
+
+  /**
+   * Confirm delete video with proper warning
+   */
+  function confirmDeleteVideo() {
     if (!window.currentVideoData) {
       showMessage('Video data not available', 'error');
       return;
     }
 
-    // Create a simple inline editing experience
-    const actions = [
-      { label: 'Edit Title', action: () => editTitle() },
-      { label: 'Edit Description', action: () => editDescription() },
-      { label: 'Edit Players', action: () => editPlayers() }
-    ];
+    // Create confirmation modal
+    const modal = document.createElement('div');
+    modal.className = 'delete-confirmation-modal';
+    modal.innerHTML = `
+      <div class="delete-confirmation-backdrop"></div>
+      <div class="delete-confirmation-content">
+        <div class="delete-confirmation-header">
+          <i class="fas fa-exclamation-triangle"></i>
+          <h3>Delete Video</h3>
+        </div>
+        <div class="delete-confirmation-body">
+          <p><strong>Are you sure you want to delete this video?</strong></p>
+          <p class="video-title-preview">"${window.currentVideoData.title}"</p>
+          <div class="delete-warning">
+            <i class="fas fa-warning"></i>
+            This action cannot be undone. The video, all comments, reactions, and saved bookmarks will be permanently deleted.
+          </div>
+        </div>
+        <div class="delete-confirmation-actions">
+          <button class="delete-cancel-btn">Cancel</button>
+          <button class="delete-confirm-btn">
+            <i class="fas fa-trash"></i>
+            Delete Permanently
+          </button>
+        </div>
+      </div>
+    `;
 
-    const choice = prompt('What would you like to edit?\n\n1. Title\n2. Description\n3. Players\n\nEnter 1, 2, or 3:');
-    
-    switch(choice) {
-      case '1':
-        editTitle();
-        break;
-      case '2':
-        editDescription();
-        break;
-      case '3':
-        editPlayers();
-        break;
-      default:
-        if (choice !== null) {
-          showMessage('Invalid choice. Please click "Edit Video" again and enter 1, 2, or 3.', 'error');
-        }
-    }
-  }
+    document.body.appendChild(modal);
 
-  /**
-   * Format players list for display
-   * @param {Array} players - Array of player names
-   * @returns {string} - Formatted players string
-   */
-  function formatPlayersList(players) {
-    if (!players || !players.length) return 'None specified';
-    return players.join(', ');
-  }
+    // Add event listeners
+    modal.querySelector('.delete-cancel-btn').onclick = () => {
+      document.body.removeChild(modal);
+    };
 
-  /**
-   * Edit video title
-   * @param {string} newTitle - Optional new title, if not provided will prompt user
-   */
-  async function editTitle(newTitle = null) {
-    const currentTitle = window.currentVideoData.title;
-    
-    if (newTitle === null) {
-      newTitle = prompt('Enter new title:', currentTitle);
-    }
-    
-    if (newTitle && newTitle !== currentTitle) {
+    modal.querySelector('.delete-confirm-btn').onclick = async () => {
       try {
-        const success = await updateVideoField('title', newTitle);
-        if (success) {
-          updateElement('video-title', newTitle);
-          window.currentVideoData.title = newTitle;
-          document.title = `${newTitle} - Replay Hub`;
-          showMessage('Title updated successfully!', 'success');
-        }
+        await deleteVideo();
+        document.body.removeChild(modal);
       } catch (error) {
-        showMessage('Failed to update title', 'error');
+        console.error('Delete failed:', error);
+        // Keep modal open on error
       }
-    }
-  }
+    };
 
-  /**
-   * Edit video description
-   */
-  async function editDescription() {
-    const currentDesc = window.currentVideoData.description;
-    const newDesc = prompt('Enter new description:', currentDesc);
-    
-    if (newDesc !== null && newDesc !== currentDesc) {
-      try {
-        const success = await updateVideoField('description', newDesc);
-        if (success) {
-          updateElement('video-description', newDesc);
-          window.currentVideoData.description = newDesc;
-          showMessage('Description updated successfully!', 'success');
-        }
-      } catch (error) {
-        showMessage('Failed to update description', 'error');
-      }
-    }
-  }
+    // Close on backdrop click
+    modal.querySelector('.delete-confirmation-backdrop').onclick = () => {
+      document.body.removeChild(modal);
+    };
 
-  /**
-   * Edit video players
-   */
-  async function editPlayers() {
-    const currentPlayers = window.currentVideoData.players || [];
-    const currentPlayersStr = currentPlayers.join(', ');
-    const newPlayersStr = prompt('Enter players (comma-separated):', currentPlayersStr);
-    
-    if (newPlayersStr !== null && newPlayersStr !== currentPlayersStr) {
-      try {
-        const newPlayers = newPlayersStr.split(',').map(p => p.trim()).filter(p => p);
-        const success = await updateVideoField('players', newPlayers);
-        if (success) {
-          // Update the players section
-          updatePlayersSection(newPlayers);
-          window.currentVideoData.players = newPlayers;
-          showMessage('Players updated successfully!', 'success');
-        }
-      } catch (error) {
-        showMessage('Failed to update players', 'error');
+    // Close on Escape key
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        document.body.removeChild(modal);
+        document.removeEventListener('keydown', handleEscape);
       }
-    }
-  }
-
-  /**
-   * Update a video field on the server
-   * @param {string} field - The field to update
-   * @param {any} value - The new value
-   * @returns {Promise<boolean>} - Success status
-   */
-  async function updateVideoField(field, value) {
-    try {
-      // Get auth token from auth module
-      let token = null;
-      if (window.replayHub && window.replayHub.auth) {
-        const options = window.replayHub.auth.addAuthToRequest({});
-        token = options.headers?.Authorization?.replace('Bearer ', '');
-      }
-      
-      if (!token) {
-        token = localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token');
-      }
-      
-      const response = await fetch(`${BASE_URL}/api/videos/${window.currentVideoData.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          [field]: value
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Error updating video field:', error);
-      throw error;
-    }
+    };
+    document.addEventListener('keydown', handleEscape);
   }
 
   /**
