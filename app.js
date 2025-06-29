@@ -410,7 +410,7 @@ function showProfileModal() {
 function createLoginModal() {
     const modal = document.createElement('div');
     modal.id = 'loginModal';
-    modal.className = 'modal';
+    modal.className = 'auth-modal';
     modal.innerHTML = `
         <div class="modal-content">
             <div class="modal-header">
@@ -439,7 +439,7 @@ function createLoginModal() {
 function createRegisterModal() {
     const modal = document.createElement('div');
     modal.id = 'registerModal';
-    modal.className = 'modal';
+    modal.className = 'auth-modal';
     modal.innerHTML = `
         <div class="modal-content">
             <div class="modal-header">
@@ -486,7 +486,7 @@ function createRegisterModal() {
 function createProfileModal() {
     const modal = document.createElement('div');
     modal.id = 'profileModal';
-    modal.className = 'modal';
+    modal.className = 'auth-modal';
     modal.innerHTML = `
         <div class="modal-content">
             <div class="modal-header">

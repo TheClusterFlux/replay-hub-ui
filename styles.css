@@ -1283,7 +1283,7 @@ textarea.form-control {
 
 /* Dark mode */
 /* Authentication Modals */
-.modal {
+.auth-modal {
   display: none;
   position: fixed;
   z-index: 1000;
@@ -1294,7 +1294,7 @@ textarea.form-control {
   background-color: rgba(0,0,0,0.5);
 }
 
-.modal-content {
+.auth-modal .modal-content {
   background-color: #fefefe;
   margin: 5% auto;
   padding: 0;
@@ -1305,7 +1305,7 @@ textarea.form-control {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.modal-header {
+.auth-modal .modal-header {
   background-color: #007cba;
   color: white;
   padding: 1rem;
@@ -1315,12 +1315,12 @@ textarea.form-control {
   align-items: center;
 }
 
-.modal-header h2 {
+.auth-modal .modal-header h2 {
   margin: 0;
   font-size: 1.5rem;
 }
 
-.close {
+.auth-modal .close {
   color: white;
   font-size: 28px;
   font-weight: bold;
@@ -1328,11 +1328,11 @@ textarea.form-control {
   line-height: 1;
 }
 
-.close:hover {
+.auth-modal .close:hover {
   opacity: 0.7;
 }
 
-.modal form {
+.auth-modal form {
   padding: 2rem;
 }
 
@@ -1512,23 +1512,23 @@ textarea.form-control {
   }
 
   /* Dark theme for auth modals */
-  .modal-content {
+  .auth-modal .modal-content {
     background-color: #1e1e1e;
     color: #ffffff;
   }
 
-  .form-group label {
+  .auth-modal .form-group label {
     color: #ffffff;
   }
 
-  .form-group input,
-  .form-group textarea {
+  .auth-modal .form-group input,
+  .auth-modal .form-group textarea {
     background-color: #333;
     color: #ffffff;
     border-color: #555;
   }
 
-  .form-group small {
+  .auth-modal .form-group small {
     color: #aaa;
   }
 
