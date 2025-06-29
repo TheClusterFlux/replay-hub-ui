@@ -1239,6 +1239,8 @@ function initUploadModal() {
     if (uploadButton) {
         uploadButton.addEventListener('click', () => {
             console.log('Upload button clicked');
+            console.log('Current user state:', currentUser);
+            console.log('Modal overlay element:', modalOverlay);
             
             // Check if user is logged in
             if (!currentUser.isLoggedIn) {
@@ -1251,7 +1253,17 @@ function initUploadModal() {
             if (modalOverlay) {
                 // Use the active class instead of display style
                 modalOverlay.classList.add('active');
-                console.log('Modal displayed');
+                console.log('Modal displayed - added active class');
+                console.log('Modal overlay classes:', modalOverlay.classList.toString());
+                
+                // Check if modal content exists
+                const modal = modalOverlay.querySelector('.modal');
+                console.log('Modal content element:', modal);
+                if (modal) {
+                    console.log('Modal content classes:', modal.classList.toString());
+                } else {
+                    console.error('Modal content (.modal) not found inside overlay!');
+                }
                 
                 // Pre-fill uploader with current username
                 const uploaderInput = document.getElementById('video-uploader');
@@ -1260,14 +1272,23 @@ function initUploadModal() {
                 if (uploaderInput) {
                     uploaderInput.value = currentUser.name;
                     uploaderInput.disabled = true; // Disable editing
+                    console.log('Set uploader input value to:', currentUser.name);
+                } else {
+                    console.error('video-uploader input not found!');
                 }
                 
                 if (bulkUploaderInput) {
                     bulkUploaderInput.value = currentUser.name;
                     bulkUploaderInput.disabled = true; // Disable editing
+                } else {
+                    console.error('bulk-video-uploader input not found!');
                 }
+            } else {
+                console.error('Modal overlay not found!');
             }
         });
+    } else {
+        console.error('Upload button not found during initialization!');
     }
     
     // Close modal when X is clicked
