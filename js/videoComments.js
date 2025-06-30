@@ -844,15 +844,32 @@ window.replayHub = window.replayHub || {};
     try {
       const currentUrl = window.location.href;
       const videoTitle = document.getElementById('video-title')?.textContent || 'Check out this video';
+      const videoDescription = document.getElementById('video-description')?.textContent || 'Watch this video on Replay Hub';
+      
+      // Get enhanced video data for sharing
+      let shareData = {
+        title: videoTitle,
+        text: videoDescription.length > 100 ? videoDescription.substring(0, 97) + '...' : videoDescription,
+        url: currentUrl
+      };
       
       // Try to use the Web Share API if available
       if (navigator.share) {
-        await navigator.share({
-          title: videoTitle,
-          text: 'Watch this video on Replay Hub',
-          url: currentUrl
-        });
+        await navigator.share(shareData);
         return;
+      }
+      
+      // Use social media meta module for enhanced clipboard functionality
+      if (window.replayHub && window.replayHub.socialMediaMeta) {
+        const success = await window.replayHub.socialMediaMeta.copyVideoLink();
+        if (success) {
+          if (window.showMessage) {
+            window.showMessage('🎬 Video link copied to clipboard!', 'success');
+          } else {
+            alert('Video link copied to clipboard!');
+          }
+          return;
+        }
       }
       
       // Fallback: Copy to clipboard
@@ -865,7 +882,7 @@ window.replayHub = window.replayHub || {};
         }
       } else {
         // Final fallback: Show share modal with the URL
-        showShareModal(currentUrl, videoTitle);
+        showShareModal(currentUrl, videoTitle, videoDescription);
       }
     } catch (error) {
       console.error('Error sharing video:', error);
@@ -887,39 +904,80 @@ window.replayHub = window.replayHub || {};
    * Show share modal with copy options
    * @param {string} url - The video URL
    * @param {string} title - The video title
+   * @param {string} description - The video description
    */
-  function showShareModal(url, title) {
-    // Create a simple share modal
+  function showShareModal(url, title, description = '') {
+    // Create enhanced share modal with social media previews
     const modal = document.createElement('div');
     modal.className = 'share-modal-overlay';
+    
+    // Prepare social sharing texts
+    const shortDescription = description.length > 100 ? description.substring(0, 97) + '...' : description;
+    const tweetText = `${title} - ${shortDescription}`.length > 200 
+      ? `${title}` 
+      : `${title} - ${shortDescription}`;
+    const whatsappText = `${title}\n\n${shortDescription}\n\nWatch here:`;
+    
     modal.innerHTML = `
       <div class="share-modal">
         <div class="share-modal-header">
-          <h3>Share Video</h3>
+          <h3><i class="fas fa-share"></i> Share Video</h3>
           <button class="share-modal-close">&times;</button>
         </div>
         <div class="share-modal-body">
-          <p><strong>${title}</strong></p>
-          <div class="share-url-container">
-            <input type="text" value="${url}" readonly class="share-url-input">
-            <button class="copy-url-btn">Copy</button>
+          <div class="share-preview">
+            <h4>${title}</h4>
+            ${description ? `<p class="share-description">${shortDescription}</p>` : ''}
+            <p class="share-note">📱 This video will show a rich preview with thumbnail when shared on Discord, WhatsApp, and other platforms!</p>
           </div>
+          
+          <div class="share-url-container">
+            <label for="share-url">Video Link:</label>
+            <div class="url-input-group">
+              <input type="text" id="share-url" value="${url}" readonly class="share-url-input">
+              <button class="copy-url-btn">
+                <i class="fas fa-copy"></i> Copy
+              </button>
+            </div>
+          </div>
+          
           <div class="share-social">
-            <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}" target="_blank" class="share-btn twitter">
-              <i class="fab fa-twitter"></i> Twitter
-            </a>
-            <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}" target="_blank" class="share-btn facebook">
-              <i class="fab fa-facebook"></i> Facebook
-            </a>
-            <a href="https://api.whatsapp.com/send?text=${encodeURIComponent(title + ' ' + url)}" target="_blank" class="share-btn whatsapp">
-              <i class="fab fa-whatsapp"></i> WhatsApp
-            </a>
+            <h5>Share on Social Media:</h5>
+            <div class="social-buttons">
+              <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(url)}" target="_blank" class="share-btn twitter">
+                <i class="fab fa-twitter"></i> Twitter
+              </a>
+              <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}" target="_blank" class="share-btn facebook">
+                <i class="fab fa-facebook"></i> Facebook
+              </a>
+              <a href="https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappText + ' ' + url)}" target="_blank" class="share-btn whatsapp">
+                <i class="fab fa-whatsapp"></i> WhatsApp
+              </a>
+              <a href="https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}" target="_blank" class="share-btn telegram">
+                <i class="fab fa-telegram"></i> Telegram
+              </a>
+              <a href="https://www.reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}" target="_blank" class="share-btn reddit">
+                <i class="fab fa-reddit"></i> Reddit
+              </a>
+              <a href="mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(shortDescription + '\n\nWatch here: ' + url)}" target="_blank" class="share-btn email">
+                <i class="fas fa-envelope"></i> Email
+              </a>
+            </div>
+          </div>
+          
+          <div class="share-tips">
+            <h5><i class="fas fa-lightbulb"></i> Sharing Tips:</h5>
+            <ul>
+              <li>🎬 The video will auto-preview in Discord, WhatsApp, and most messaging apps</li>
+              <li>📱 Recipients can watch without creating an account</li>
+              <li>🔗 This link works on all devices and browsers</li>
+            </ul>
           </div>
         </div>
       </div>
     `;
     
-    // Add styles
+    // Add enhanced styles
     modal.style.cssText = `
       position: fixed;
       top: 0;
@@ -932,6 +990,198 @@ window.replayHub = window.replayHub || {};
       justify-content: center;
       z-index: 10000;
     `;
+    
+    // Add styles for the modal content
+    const style = document.createElement('style');
+    style.textContent = `
+      .share-modal {
+        background: white;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      }
+      
+      .share-modal-header {
+        padding: 20px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      .share-modal-header h3 {
+        margin: 0;
+        color: #333;
+        font-size: 1.2em;
+      }
+      
+      .share-modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #666;
+        padding: 5px;
+      }
+      
+      .share-modal-close:hover {
+        color: #000;
+      }
+      
+      .share-modal-body {
+        padding: 20px;
+      }
+      
+      .share-preview {
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+      }
+      
+      .share-preview h4 {
+        margin: 0 0 10px 0;
+        color: #333;
+        font-size: 1.1em;
+      }
+      
+      .share-description {
+        margin: 10px 0;
+        color: #666;
+        font-size: 0.9em;
+        line-height: 1.4;
+      }
+      
+      .share-note {
+        margin: 10px 0 0 0;
+        color: #28a745;
+        font-size: 0.85em;
+        font-weight: 500;
+      }
+      
+      .share-url-container {
+        margin-bottom: 20px;
+      }
+      
+      .share-url-container label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+        color: #333;
+      }
+      
+      .url-input-group {
+        display: flex;
+        gap: 10px;
+      }
+      
+      .share-url-input {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-family: monospace;
+        font-size: 0.9em;
+        background: #f8f9fa;
+      }
+      
+      .copy-url-btn {
+        padding: 10px 15px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      
+      .copy-url-btn:hover {
+        background: #0056b3;
+      }
+      
+      .share-social h5 {
+        margin: 0 0 10px 0;
+        color: #333;
+        font-size: 1em;
+      }
+      
+      .social-buttons {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      
+      .share-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px;
+        border-radius: 8px;
+        text-decoration: none;
+        color: white;
+        font-weight: 500;
+        font-size: 0.9em;
+        transition: all 0.2s;
+      }
+      
+      .share-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      }
+      
+      .share-btn.twitter { background: #1da1f2; }
+      .share-btn.facebook { background: #1877f2; }
+      .share-btn.whatsapp { background: #25d366; }
+      .share-btn.telegram { background: #0088cc; }
+      .share-btn.reddit { background: #ff4500; }
+      .share-btn.email { background: #6c757d; }
+      
+      .share-tips {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 4px solid #28a745;
+      }
+      
+      .share-tips h5 {
+        margin: 0 0 10px 0;
+        color: #333;
+        font-size: 0.95em;
+      }
+      
+      .share-tips ul {
+        margin: 0;
+        padding-left: 20px;
+      }
+      
+      .share-tips li {
+        margin-bottom: 5px;
+        font-size: 0.85em;
+        color: #666;
+        line-height: 1.4;
+      }
+      
+      @media (max-width: 600px) {
+        .share-modal {
+          width: 95%;
+        }
+        
+        .social-buttons {
+          grid-template-columns: 1fr;
+        }
+        
+        .url-input-group {
+          flex-direction: column;
+        }
+      }
+    `;
+    document.head.appendChild(style);
     
     document.body.appendChild(modal);
     

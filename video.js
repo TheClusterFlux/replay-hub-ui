@@ -340,11 +340,23 @@ async function initializeVideoUI(s3Url, videoId, videoData = null) {
       if (window.replayHub.videoMetadata) {
         window.replayHub.videoMetadata.updateVideoUI(videoData);
       }
+      
+      // Update social media meta tags with video data
+      if (window.replayHub.socialMediaMeta) {
+        window.replayHub.socialMediaMeta.updateVideoMetaTags(videoData);
+        window.replayHub.socialMediaMeta.addStructuredData(videoData);
+      }
     } else if (videoId && window.replayHub.videoMetadata) {
       // Fetch and display video metadata if we have an ID but no data
       const fetchedVideoData = await window.replayHub.videoMetadata.fetchVideoDetails(videoId);
       window.replayHub.videoMetadata.updateVideoUI(fetchedVideoData);
       videoData = fetchedVideoData; // Store for later use
+      
+      // Update social media meta tags with fetched video data
+      if (window.replayHub.socialMediaMeta && videoData) {
+        window.replayHub.socialMediaMeta.updateVideoMetaTags(videoData);
+        window.replayHub.socialMediaMeta.addStructuredData(videoData);
+      }
     } else {
       // Basic title from URL if no ID provided
       const videoTitle = document.getElementById('video-title');
@@ -352,6 +364,18 @@ async function initializeVideoUI(s3Url, videoId, videoData = null) {
         const filename = s3Url.split('/').pop().split('?')[0];
         const prettyName = window.replayHub.utils.formatVideoTitle(filename);
         videoTitle.textContent = prettyName;
+        
+        // Update social media meta tags with basic info for direct S3 URLs
+        if (window.replayHub.socialMediaMeta) {
+          const basicVideoData = {
+            title: prettyName,
+            description: `Watch ${prettyName} on Replay Hub`,
+            s3_url: s3Url,
+            uploader: 'Unknown'
+          };
+          window.replayHub.socialMediaMeta.updateVideoMetaTags(basicVideoData);
+          window.replayHub.socialMediaMeta.addStructuredData(basicVideoData);
+        }
       }
     }
     
