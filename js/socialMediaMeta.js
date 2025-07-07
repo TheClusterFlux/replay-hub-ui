@@ -30,7 +30,7 @@ window.replayHub = window.replayHub || {};
     // Prepare meta tag values
     const title = videoData.title || 'Watch Video - Replay Hub';
     const description = generateVideoDescription(videoData);
-    const videoUrl = videoData.s3_url || '';
+    const videoUrl = formatVideoUrlForSocialMedia(videoData.s3_url || '');
     const thumbnailUrl = videoData.thumbnail_url || generateThumbnailUrl(videoData);
     const duration = videoData.duration || '';
     const uploader = videoData.uploader || 'Unknown';
@@ -45,26 +45,50 @@ window.replayHub = window.replayHub || {};
     // Update basic meta tags
     updateMetaTag('description', description);
     
-    // Update Open Graph meta tags
+    // Update Open Graph meta tags for better WhatsApp/Discord support
+    updateMetaProperty('og:type', 'video.other');
+    updateMetaProperty('og:site_name', 'Replay Hub');
     updateMetaProperty('og:title', title);
     updateMetaProperty('og:description', description);
     updateMetaProperty('og:url', currentUrl);
     updateMetaProperty('og:image', thumbnailUrl);
+    updateMetaProperty('og:image:width', '1200');
+    updateMetaProperty('og:image:height', '630');
+    updateMetaProperty('og:image:alt', `${title} - Video thumbnail`);
+    
+    // Video-specific Open Graph tags
     updateMetaProperty('og:video', videoUrl);
     updateMetaProperty('og:video:url', videoUrl);
     updateMetaProperty('og:video:secure_url', videoUrl);
+    updateMetaProperty('og:video:type', 'video/mp4');
+    updateMetaProperty('og:video:width', '1280');
+    updateMetaProperty('og:video:height', '720');
     
     if (duration) {
       updateMetaProperty('og:video:duration', duration.toString());
     }
 
-    // Update Twitter Card meta tags
+    // Twitter Card meta tags
+    updateMetaName('twitter:card', 'player');
+    updateMetaName('twitter:site', '@ReplayHub');
+    updateMetaName('twitter:creator', '@ReplayHub');
     updateMetaName('twitter:title', title);
     updateMetaName('twitter:description', description);
     updateMetaName('twitter:image', thumbnailUrl);
+    updateMetaName('twitter:image:alt', `${title} - Video thumbnail`);
     updateMetaName('twitter:player', currentUrl);
+    updateMetaName('twitter:player:width', '1280');
+    updateMetaName('twitter:player:height', '720');
     updateMetaName('twitter:player:stream', videoUrl);
+    updateMetaName('twitter:player:stream:content_type', 'video/mp4');
 
+    // Discord-specific meta tags
+    updateMetaName('theme-color', '#ff6b6b');
+    
+    // Additional meta tags for better social media support
+    updateMetaProperty('og:locale', 'en_US');
+    updateMetaProperty('og:updated_time', new Date().toISOString());
+    
     // Update canonical URL
     updateCanonicalUrl(currentUrl);
 
@@ -130,11 +154,38 @@ window.replayHub = window.replayHub || {};
       const possibleThumbnail = `${baseUrl}_thumbnail.jpg`;
       
       // For now, return a placeholder or default image
-      return `${window.location.origin}/images/video-placeholder.jpg`;
+      // Use a data URI for a simple colored placeholder instead of missing file
+      return generatePlaceholderImage(videoData.title || 'Video');
     }
 
     // Fallback to a default Replay Hub image
-    return `${window.location.origin}/images/replay-hub-logo.jpg`;
+    return generatePlaceholderImage('Replay Hub');
+  }
+
+  /**
+   * Generate a placeholder image using data URI
+   * @param {string} text - Text to display on the placeholder
+   * @returns {string} Data URI for placeholder image
+   */
+  function generatePlaceholderImage(text) {
+    // Create a simple SVG placeholder with the text
+    const svg = `
+      <svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#ff6b6b;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#4ecdc4;stop-opacity:1" />
+          </linearGradient>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grad)"/>
+        <circle cx="600" cy="250" r="80" fill="rgba(255,255,255,0.2)"/>
+        <polygon points="580,230 580,270 620,250" fill="white"/>
+        <text x="600" y="380" font-family="Arial, sans-serif" font-size="48" font-weight="bold" text-anchor="middle" fill="white">${text}</text>
+        <text x="600" y="420" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="rgba(255,255,255,0.8)">Watch on Replay Hub</text>
+      </svg>
+    `;
+    
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
   }
 
   /**
@@ -218,6 +269,38 @@ window.replayHub = window.replayHub || {};
   }
 
   /**
+   * Validate and format video URL for social media compatibility
+   * @param {string} videoUrl - The video URL to validate
+   * @returns {string} Formatted video URL
+   */
+  function formatVideoUrlForSocialMedia(videoUrl) {
+    if (!videoUrl) return '';
+    
+    try {
+      // Ensure URL is properly encoded
+      const url = new URL(videoUrl);
+      
+      // For S3 URLs, ensure they're accessible to social media crawlers
+      if (url.hostname.includes('s3.amazonaws.com') || url.hostname.includes('.s3.')) {
+        // Check if URL has proper parameters for public access
+        if (!url.searchParams.has('X-Amz-Signature')) {
+          // If no signature, it might be a public URL
+          return videoUrl;
+        } else {
+          // For signed URLs, we might need to create a proxy or use a different approach
+          console.warn('Signed S3 URL detected - may not work with social media crawlers');
+          return videoUrl;
+        }
+      }
+      
+      return videoUrl;
+    } catch (error) {
+      console.warn('Invalid video URL for social media:', error);
+      return videoUrl;
+    }
+  }
+
+  /**
    * Get structured data for the video (JSON-LD)
    * @param {Object} videoData - Video metadata
    * @returns {Object} Structured data object
@@ -286,6 +369,14 @@ window.replayHub = window.replayHub || {};
     updateMetaName('twitter:player', currentUrl);
     updateCanonicalUrl(currentUrl);
     
+    // Set a default placeholder image immediately
+    const defaultThumbnail = generatePlaceholderImage('Replay Hub');
+    updateMetaProperty('og:image', defaultThumbnail);
+    updateMetaName('twitter:image', defaultThumbnail);
+    
+    // Set updated time
+    updateMetaProperty('og:updated_time', new Date().toISOString());
+    
     console.log('🏷️ Initialized default social media meta tags');
   }
 
@@ -322,13 +413,41 @@ window.replayHub = window.replayHub || {};
     }
   }
 
+  /**
+   * Debug function to check current meta tags
+   * @returns {Object} Current meta tag values
+   */
+  function debugMetaTags() {
+    const metaTags = {};
+    
+    // Check Open Graph tags
+    const ogTags = document.querySelectorAll('meta[property^="og:"]');
+    ogTags.forEach(tag => {
+      metaTags[tag.getAttribute('property')] = tag.getAttribute('content');
+    });
+    
+    // Check Twitter tags
+    const twitterTags = document.querySelectorAll('meta[name^="twitter:"]');
+    twitterTags.forEach(tag => {
+      metaTags[tag.getAttribute('name')] = tag.getAttribute('content');
+    });
+    
+    console.log('🔍 Current meta tags:', metaTags);
+    return metaTags;
+  }
+
   // Export functions to the global replayHub object
   window.replayHub.socialMediaMeta = {
     updateVideoMetaTags,
     initializeDefaultMetaTags,
     generateShareableUrl,
     addStructuredData,
-    copyVideoLink
+    copyVideoLink,
+    debugMetaTags,
+    formatVideoUrlForSocialMedia,
+    updateMetaProperty,
+    updateMetaName,
+    updateCanonicalUrl
   };
 
   // Initialize default meta tags when module loads

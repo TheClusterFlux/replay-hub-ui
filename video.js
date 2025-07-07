@@ -38,6 +38,15 @@ async function initVideoPage() {
     // Step 5: Initialize video with complete context (auth + data)
     await initializeVideoUI(s3Url || (videoData ? videoData.s3_url : null), videoId, videoData);
     
+    // Step 6: Ensure meta tags are updated for social media sharing
+    if (window.replayHub && window.replayHub.socialMediaMeta) {
+      // Update meta tags with current URL even if no video data
+      const currentUrl = window.location.href;
+      window.replayHub.socialMediaMeta.updateMetaProperty('og:url', currentUrl);
+      window.replayHub.socialMediaMeta.updateMetaName('twitter:player', currentUrl);
+      window.replayHub.socialMediaMeta.updateCanonicalUrl(currentUrl);
+    }
+    
     console.log("✅ Video page initialization complete");
     
   } catch (error) {
