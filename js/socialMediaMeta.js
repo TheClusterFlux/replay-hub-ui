@@ -140,12 +140,20 @@ window.replayHub = window.replayHub || {};
    * @returns {string} Thumbnail URL
    */
   function generateThumbnailUrl(videoData) {
-    // If we have a thumbnail URL, use it
+    // Priority 1: Use thumbnail_url if available (direct URL)
     if (videoData.thumbnail_url) {
+      console.log('🖼️ Using thumbnail_url from database:', videoData.thumbnail_url);
       return videoData.thumbnail_url;
     }
 
-    // Try to generate thumbnail from video URL
+    // Priority 2: Use thumbnail_id to generate URL from your API
+    if (videoData.thumbnail_id) {
+      const thumbnailUrl = `${window.BASE_URL}/thumbnail/${videoData.thumbnail_id}`;
+      console.log('🖼️ Using thumbnail_id from database:', thumbnailUrl);
+      return thumbnailUrl;
+    }
+
+    // Priority 3: Try to generate thumbnail from video URL (S3)
     if (videoData.s3_url) {
       // For S3 videos, we could potentially generate a thumbnail URL
       // This would require backend support to generate thumbnails
@@ -153,17 +161,42 @@ window.replayHub = window.replayHub || {};
       const baseUrl = videoData.s3_url.replace(`.${videoExtension}`, '');
       const possibleThumbnail = `${baseUrl}_thumbnail.jpg`;
       
-      // For now, return a placeholder or default image
-      // Use a data URI for a simple colored placeholder instead of missing file
-      return generatePlaceholderImage(videoData.title || 'Video');
+      console.log('🖼️ No thumbnail found, using placeholder for:', videoData.title || 'Video');
+      return generatePublicPlaceholderImage(videoData.title || 'Video');
     }
 
-    // Fallback to a default Replay Hub image
-    return generatePlaceholderImage('Replay Hub');
+    // Priority 4: Fallback to a default Replay Hub image
+    console.log('🖼️ No video data, using default placeholder');
+    return generatePublicPlaceholderImage('Replay Hub');
   }
 
   /**
-   * Generate a placeholder image using data URI
+   * Generate a public placeholder image URL that social media crawlers can access
+   * @param {string} text - Text to display on the placeholder
+   * @returns {string} Public image URL
+   */
+  function generatePublicPlaceholderImage(text) {
+    // Use a public image service that creates dynamic images
+    // This ensures social media crawlers can access the image
+    const encodedText = encodeURIComponent(text);
+    const encodedSubtext = encodeURIComponent('Watch on Replay Hub');
+    
+    // Option 1: Use a public image generation service
+    // You can replace this with your own image generation endpoint
+    const imageUrl = `https://via.placeholder.com/1200x630/ff6b6b/ffffff?text=${encodedText}`;
+    
+    // Option 2: Use a more sophisticated image service (if available)
+    // const imageUrl = `https://dummyimage.com/1200x630/ff6b6b/ffffff&text=${encodedText}`;
+    
+    // Option 3: Use a custom image generation service
+    // const imageUrl = `${window.location.origin}/api/generate-thumbnail?title=${encodedText}&subtitle=${encodedSubtext}`;
+    
+    console.log('🖼️ Generated public placeholder image:', imageUrl);
+    return imageUrl;
+  }
+
+  /**
+   * Generate a placeholder image using data URI (for local use only)
    * @param {string} text - Text to display on the placeholder
    * @returns {string} Data URI for placeholder image
    */
@@ -370,7 +403,7 @@ window.replayHub = window.replayHub || {};
     updateCanonicalUrl(currentUrl);
     
     // Set a default placeholder image immediately
-    const defaultThumbnail = generatePlaceholderImage('Replay Hub');
+    const defaultThumbnail = generatePublicPlaceholderImage('Replay Hub');
     updateMetaProperty('og:image', defaultThumbnail);
     updateMetaName('twitter:image', defaultThumbnail);
     
@@ -447,7 +480,8 @@ window.replayHub = window.replayHub || {};
     formatVideoUrlForSocialMedia,
     updateMetaProperty,
     updateMetaName,
-    updateCanonicalUrl
+    updateCanonicalUrl,
+    generateThumbnailUrl
   };
 
   // Initialize default meta tags when module loads

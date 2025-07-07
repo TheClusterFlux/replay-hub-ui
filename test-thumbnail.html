@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thumbnail Test - Replay Hub</title>
+    
+    <!-- Test meta tags -->
+    <meta property="og:type" content="video.other">
+    <meta property="og:site_name" content="Replay Hub">
+    <meta property="og:title" content="Test Video with Thumbnail">
+    <meta property="og:description" content="Testing thumbnail generation for social media embedding">
+    <meta property="og:url" content="">
+    <meta property="og:image" content="">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Test video thumbnail">
+    <meta property="og:video" content="">
+    <meta property="og:video:url" content="">
+    <meta property="og:video:secure_url" content="">
+    <meta property="og:video:type" content="video/mp4">
+    <meta property="og:video:width" content="1280">
+    <meta property="og:video:height" content="720">
+    
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .thumbnail-preview {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .thumbnail-preview img {
+            max-width: 100%;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+        .meta-info {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .test-btn {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .test-btn:hover {
+            background: #005a87;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖼️ Thumbnail Test Page</h1>
+        <p>This page tests thumbnail generation for social media embedding.</p>
+        
+        <div class="test-btn" onclick="testThumbnail()">Generate Test Thumbnail</div>
+        <div class="test-btn" onclick="testWithRealData()">Test with Real Video</div>
+        <div class="test-btn" onclick="showMetaTags()">Show Meta Tags</div>
+        
+        <div id="thumbnail-preview" class="thumbnail-preview"></div>
+        <div id="meta-info" class="meta-info"></div>
+    </div>
+
+    <script src="js/socialMediaMeta.js"></script>
+    <script>
+        function testThumbnail() {
+            const preview = document.getElementById('thumbnail-preview');
+            const metaInfo = document.getElementById('meta-info');
+            
+            // Test with sample video data that includes thumbnail
+            const testData = {
+                title: 'Amazing Gaming Replay',
+                description: 'Watch this incredible gaming moment!',
+                s3_url: 'https://example.com/test-video.mp4',
+                uploader: 'GamerPro123',
+                thumbnail_id: '68125d3208b109e67e3dc0d8', // This will use your API endpoint
+                // thumbnail_url: 'https://example.com/thumbnail.jpg' // Alternative: direct URL
+            };
+            
+            // Update meta tags
+            if (window.replayHub && window.replayHub.socialMediaMeta) {
+                window.replayHub.socialMediaMeta.updateVideoMetaTags(testData);
+                
+                // Get the generated thumbnail URL
+                const thumbnailUrl = window.replayHub.socialMediaMeta.generateThumbnailUrl(testData);
+                
+                // Show preview
+                preview.innerHTML = `
+                    <h3>Generated Thumbnail:</h3>
+                    <img src="${thumbnailUrl}" alt="Test thumbnail" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                    <p style="display:none; color:red;">❌ Image failed to load</p>
+                    <p><strong>URL:</strong> ${thumbnailUrl}</p>
+                `;
+                
+                // Show meta tag info
+                const metaTags = window.replayHub.socialMediaMeta.debugMetaTags();
+                metaInfo.innerHTML = `
+                    <h3>Meta Tags:</h3>
+                    <p><strong>og:image:</strong> ${metaTags['og:image'] || 'Not set'}</p>
+                    <p><strong>og:title:</strong> ${metaTags['og:title'] || 'Not set'}</p>
+                    <p><strong>og:description:</strong> ${metaTags['og:description'] || 'Not set'}</p>
+                    <p><strong>twitter:image:</strong> ${metaTags['twitter:image'] || 'Not set'}</p>
+                `;
+            } else {
+                preview.innerHTML = '<p style="color:red;">❌ Social media meta module not loaded</p>';
+            }
+        }
+        
+        async function testWithRealData() {
+            const preview = document.getElementById('thumbnail-preview');
+            const metaInfo = document.getElementById('meta-info');
+            
+            preview.innerHTML = '<p>Loading real video data...</p>';
+            
+            try {
+                // Try to get a real video from your database
+                const response = await fetch(`${window.BASE_URL || 'http://localhost:3000'}/metadata`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch videos');
+                }
+                
+                const videos = await response.json();
+                if (videos && videos.length > 0) {
+                    const realVideo = videos[0]; // Use the first video
+                    
+                    // Update meta tags with real video data
+                    if (window.replayHub && window.replayHub.socialMediaMeta) {
+                        window.replayHub.socialMediaMeta.updateVideoMetaTags(realVideo);
+                        
+                        // Get the generated thumbnail URL
+                        const thumbnailUrl = window.replayHub.socialMediaMeta.generateThumbnailUrl(realVideo);
+                        
+                        // Show preview
+                        preview.innerHTML = `
+                            <h3>Real Video Thumbnail:</h3>
+                            <p><strong>Title:</strong> ${realVideo.title || 'No title'}</p>
+                            <p><strong>Thumbnail ID:</strong> ${realVideo.thumbnail_id || 'None'}</p>
+                            <p><strong>Thumbnail URL:</strong> ${realVideo.thumbnail_url || 'None'}</p>
+                            <img src="${thumbnailUrl}" alt="Real thumbnail" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                            <p style="display:none; color:red;">❌ Image failed to load</p>
+                            <p><strong>Generated URL:</strong> ${thumbnailUrl}</p>
+                        `;
+                        
+                        // Show meta tag info
+                        const metaTags = window.replayHub.socialMediaMeta.debugMetaTags();
+                        metaInfo.innerHTML = `
+                            <h3>Meta Tags:</h3>
+                            <p><strong>og:image:</strong> ${metaTags['og:image'] || 'Not set'}</p>
+                            <p><strong>og:title:</strong> ${metaTags['og:title'] || 'Not set'}</p>
+                            <p><strong>og:description:</strong> ${metaTags['og:description'] || 'Not set'}</p>
+                            <p><strong>twitter:image:</strong> ${metaTags['twitter:image'] || 'Not set'}</p>
+                        `;
+                    }
+                } else {
+                    preview.innerHTML = '<p style="color:red;">❌ No videos found in database</p>';
+                }
+            } catch (error) {
+                preview.innerHTML = `<p style="color:red;">❌ Error loading real video: ${error.message}</p>`;
+                console.error('Error testing with real data:', error);
+            }
+        }
+        
+        function showMetaTags() {
+            const metaInfo = document.getElementById('meta-info');
+            if (window.replayHub && window.replayHub.socialMediaMeta) {
+                const metaTags = window.replayHub.socialMediaMeta.debugMetaTags();
+                let html = '<h3>All Meta Tags:</h3>';
+                Object.keys(metaTags).forEach(key => {
+                    html += `<p><strong>${key}:</strong> ${metaTags[key] || 'Not set'}</p>`;
+                });
+                metaInfo.innerHTML = html;
+            } else {
+                metaInfo.innerHTML = '<p style="color:red;">❌ Social media meta module not loaded</p>';
+            }
+        }
+        
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            setTimeout(testThumbnail, 1000);
+        });
+    </script>
+</body>
+</html> 
