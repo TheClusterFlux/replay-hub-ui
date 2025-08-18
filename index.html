@@ -120,6 +120,43 @@
                             <small class="form-text text-muted">Enter player names separated by commas (e.g. "Player1, Player2, Player3")</small>
                         </div>
                         
+                        <!-- H.265 Conversion Options -->
+                        <div class="form-group">
+                            <label class="form-label">Video Optimization</label>
+                            <div class="conversion-options">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="enable-h265-conversion" checked>
+                                    <span class="checkmark"></span>
+                                    Convert to H.265 for better compression
+                                </label>
+                                <small class="form-text text-muted">
+                                    H.265 videos are ~50% smaller with the same quality. 
+                                    <span id="conversion-status" class="conversion-status"></span>
+                                </small>
+                            </div>
+                            
+                            <div id="conversion-settings" class="conversion-settings">
+                                <div class="setting-group">
+                                    <label for="conversion-quality">Quality:</label>
+                                    <select id="conversion-quality" class="form-control">
+                                        <option value="low">Low (smaller file)</option>
+                                        <option value="medium" selected>Medium (balanced)</option>
+                                        <option value="high">High (larger file)</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="setting-group">
+                                    <label for="max-resolution">Max Resolution:</label>
+                                    <select id="max-resolution" class="form-control">
+                                        <option value="720p">720p</option>
+                                        <option value="1080p" selected>1080p</option>
+                                        <option value="1440p">1440p</option>
+                                        <option value="4k">4K</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div id="progress-container" class="progress-container" style="display: none;">
                             <div class="progress-bar">
                                 <div id="upload-progress" class="progress" style="width: 0%;"></div>
@@ -162,6 +199,9 @@
     
     <!-- Load Authentication Module -->
     <script src="js/auth.js"></script>
+    
+    <!-- Load Video Converter -->
+    <script src="js/videoConverter.js"></script>
     
     <!-- Load our application script -->
     <script src="app.js" type="module"></script>

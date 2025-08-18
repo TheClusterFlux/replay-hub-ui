@@ -1115,23 +1115,107 @@ body {
   color: var(--text-secondary-color);
 }
 
+/* Form Controls */
 .form-control {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  font-size: 16px;
-  transition: border-color 0.3s;
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #e1e5e9;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    background-color: #ffffff;
 }
 
 .form-control:focus {
-  outline: none;
-  border-color: var(--accent-color);
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
 }
 
-textarea.form-control {
-  min-height: 100px;
-  resize: vertical;
+/* Video Conversion Options */
+.conversion-options {
+    margin-bottom: 16px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.checkbox-label input[type="checkbox"] {
+    margin-right: 12px;
+    width: 18px;
+    height: 18px;
+    accent-color: #007bff;
+}
+
+/* Video Conversion Status */
+.conversion-status {
+    display: inline-block;
+    font-weight: 500;
+    margin-left: 8px;
+    transition: color 0.3s ease;
+}
+
+.conversion-status.converting {
+    color: #ffc107;
+}
+
+.conversion-status.success {
+    color: #28a745;
+}
+
+.conversion-status.error {
+    color: #dc3545;
+}
+
+/* Conversion Settings */
+.conversion-settings {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 12px;
+    transition: all 0.3s ease;
+}
+
+.conversion-settings:hover {
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+}
+
+.setting-group {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.setting-group:last-child {
+    margin-bottom: 0;
+}
+
+.setting-group label {
+    min-width: 120px;
+    font-weight: 500;
+    margin-right: 12px;
+    color: #495057;
+}
+
+.setting-group .form-control {
+    flex: 1;
+    max-width: 200px;
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.setting-group .form-control:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
 }
 
 .modal-footer {

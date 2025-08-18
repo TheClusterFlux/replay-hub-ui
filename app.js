@@ -1327,6 +1327,47 @@ function initUploadModal() {
         });
     }
     
+    // Handle conversion settings visibility
+    const enableConversionCheckbox = document.getElementById('enable-h265-conversion');
+    const conversionSettings = document.getElementById('conversion-settings');
+    const conversionStatus = document.getElementById('conversion-status');
+    
+    if (enableConversionCheckbox && conversionSettings) {
+        // Show/hide conversion settings based on checkbox
+        const toggleConversionSettings = () => {
+            if (enableConversionCheckbox.checked) {
+                conversionSettings.style.display = 'block';
+                conversionStatus.textContent = 'Ready to convert';
+                conversionStatus.className = 'conversion-status success';
+            } else {
+                conversionSettings.style.display = 'none';
+                conversionStatus.textContent = 'Using original format';
+                conversionStatus.className = 'conversion-status';
+            }
+        };
+        
+        enableConversionCheckbox.addEventListener('change', toggleConversionSettings);
+        toggleConversionSettings(); // Initialize state
+    }
+    
+    // Handle conversion quality and resolution changes
+    const conversionQuality = document.getElementById('conversion-quality');
+    const maxResolution = document.getElementById('max-resolution');
+    
+    if (conversionQuality && maxResolution && conversionStatus) {
+        const updateConversionStatus = () => {
+            if (enableConversionCheckbox?.checked) {
+                const quality = conversionQuality.value;
+                const resolution = maxResolution.value;
+                conversionStatus.textContent = `Ready: ${quality} quality, ${resolution}`;
+                conversionStatus.className = 'conversion-status success';
+            }
+        };
+        
+        conversionQuality.addEventListener('change', updateConversionStatus);
+        maxResolution.addEventListener('change', updateConversionStatus);
+    }
+    
     // Handling file selection for single upload
     if (singleDropzone) {
         // Prevent default browser behavior for drag events
@@ -1549,12 +1590,65 @@ function initUploadModal() {
             if (progressContainer) progressContainer.style.display = 'block';
             if (uploadStatus) uploadStatus.textContent = 'Preparing to upload...';
             
+            // Check if H.265 conversion is enabled
+            const enableConversion = document.getElementById('enable-h265-conversion')?.checked;
+            const conversionQuality = document.getElementById('conversion-quality')?.value || 'medium';
+            const maxResolution = document.getElementById('max-resolution')?.value || '1080p';
+            
+            let fileToUpload = selectedFile;
+            
+            // Convert video to H.265 if enabled
+            if (enableConversion && window.VideoConverter) {
+                try {
+                    if (uploadStatus) uploadStatus.textContent = 'Converting video to H.265...';
+                    
+                    const converter = new window.VideoConverter();
+                    const conversionOptions = {
+                        quality: conversionQuality,
+                        maxWidth: this.getResolutionWidth(maxResolution),
+                        maxHeight: this.getResolutionHeight(maxResolution)
+                    };
+                    
+                    console.log('🔄 Converting video with options:', conversionOptions);
+                    fileToUpload = await converter.convertToH265(selectedFile, conversionOptions);
+                    
+                    if (fileToUpload !== selectedFile) {
+                        console.log('✅ Video converted successfully');
+                        if (uploadStatus) uploadStatus.textContent = 'Video converted! Starting upload...';
+                        
+                        // Update conversion status
+                        const conversionStatus = document.getElementById('conversion-status');
+                        if (conversionStatus) {
+                            const sizeReduction = ((selectedFile.size - fileToUpload.size) / selectedFile.size * 100).toFixed(1);
+                            conversionStatus.textContent = `Converted! ${sizeReduction}% smaller`;
+                            conversionStatus.style.color = '#28a745';
+                        }
+                    } else {
+                        console.log('ℹ️ No conversion needed or conversion failed, using original');
+                        if (uploadStatus) uploadStatus.textContent = 'Using original video format...';
+                    }
+                    
+                    converter.destroy();
+                } catch (error) {
+                    console.error('❌ Video conversion failed:', error);
+                    if (uploadStatus) uploadStatus.textContent = 'Conversion failed, using original...';
+                    fileToUpload = selectedFile; // Fallback to original
+                }
+            }
+            
             const formData = new FormData();
-            formData.append('file', selectedFile);
+            formData.append('file', fileToUpload);
             formData.append('title', titleInput.value);
             formData.append('description', descriptionInput.value);
             formData.append('uploader', uploaderInput.value);
             formData.append('s3', 'true'); // Always upload to S3
+            
+            // Add conversion metadata
+            if (fileToUpload !== selectedFile) {
+                formData.append('converted_to_h265', 'true');
+                formData.append('original_size', selectedFile.size.toString());
+                formData.append('converted_size', fileToUpload.size.toString());
+            }
             
             // Add players if available
             if (playersInput && playersInput.value) {
@@ -1652,14 +1746,62 @@ function initUploadModal() {
                 // Basic file metadata
                 const fileName = file.name.split('.')[0] || `Video ${i+1}`;
                 
+                // Check if H.265 conversion is enabled
+                const enableConversion = document.getElementById('enable-h265-conversion')?.checked;
+                const conversionQuality = document.getElementById('conversion-quality')?.value || 'medium';
+                const maxResolution = document.getElementById('max-resolution')?.value || '1080p';
+                
+                let fileToUpload = file;
+                
+                // Convert video to H.265 if enabled
+                if (enableConversion && window.VideoConverter) {
+                    try {
+                        // Update progress text
+                        if (uploadList) {
+                            const progressText = uploadList.querySelectorAll('.upload-item .progress-text')[i];
+                            if (progressText) progressText.textContent = 'Converting to H.265...';
+                        }
+                        
+                        const converter = new window.VideoConverter();
+                        const conversionOptions = {
+                            quality: conversionQuality,
+                            maxWidth: getResolutionWidth(maxResolution),
+                            maxHeight: getResolutionHeight(maxResolution)
+                        };
+                        
+                        console.log(`🔄 Converting file ${i+1}/${selectedBulkFiles.length} to H.265:`, conversionOptions);
+                        fileToUpload = await converter.convertToH265(file, conversionOptions);
+                        
+                        if (fileToUpload !== file) {
+                            console.log(`✅ File ${i+1} converted successfully`);
+                            const sizeReduction = ((file.size - fileToUpload.size) / file.size * 100).toFixed(1);
+                            console.log(`📊 Size reduction: ${sizeReduction}%`);
+                        } else {
+                            console.log(`ℹ️ File ${i+1}: No conversion needed or conversion failed`);
+                        }
+                        
+                        converter.destroy();
+                    } catch (error) {
+                        console.error(`❌ Video conversion failed for file ${i+1}:`, error);
+                        fileToUpload = file; // Fallback to original
+                    }
+                }
+                
                 // Create form data for this file
                 const formData = new FormData();
-                formData.append('file', file);
+                formData.append('file', fileToUpload);
                 formData.append('title', fileName);
                 formData.append('description', `Uploaded on ${new Date().toLocaleDateString()}`);
                 formData.append('uploader', uploaderInput.value.trim());
                 formData.append('s3', 'true');
                 
+                // Add conversion metadata
+                if (fileToUpload !== file) {
+                    formData.append('converted_to_h265', 'true');
+                    formData.append('original_size', file.size.toString());
+                    formData.append('converted_size', fileToUpload.size.toString());
+                }
+            
                 try {
                     // Upload the file
                     const response = await uploadVideo(formData, (progress) => {
@@ -1809,3 +1951,28 @@ function initUploadModal() {
         if (uploadProgress) uploadProgress.style.width = '0%';
     }
 }
+
+// Helper functions for video conversion
+function getResolutionWidth(resolution) {
+    const resolutions = {
+        '720p': 1280,
+        '1080p': 1920,
+        '1440p': 2560,
+        '4k': 3840
+    };
+    return resolutions[resolution] || 1920;
+}
+
+function getResolutionHeight(resolution) {
+    const resolutions = {
+        '720p': 720,
+        '1080p': 1080,
+        '1440p': 1440,
+        '4k': 2160
+    };
+    return resolutions[resolution] || 1080;
+}
+
+// Make helper functions available globally
+window.getResolutionWidth = getResolutionWidth;
+window.getResolutionHeight = getResolutionHeight;
