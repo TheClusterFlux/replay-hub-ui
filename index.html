@@ -158,10 +158,85 @@
                         </div>
                         
                         <div id="progress-container" class="progress-container" style="display: none;">
-                            <div class="progress-bar">
-                                <div id="upload-progress" class="progress" style="width: 0%;"></div>
+                            <!-- Conversion Progress Section -->
+                            <div id="conversion-progress" class="progress-section conversion-progress" style="display: none;">
+                                <div class="progress-header">
+                                    <div class="progress-title">🔄 Converting Video to H.265</div>
+                                    <div class="progress-status" id="conversion-status">Preparing conversion...</div>
+                                </div>
+                                
+                                <div class="progress-bar-container">
+                                    <div id="conversion-progress-bar" class="progress-bar converting" style="width: 0%;">
+                                        <div class="progress-text" id="conversion-progress-text">0%</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="progress-details">
+                                    <div class="progress-detail">
+                                        <span class="progress-detail-label">Original Size:</span>
+                                        <span class="progress-detail-value" id="original-size">-</span>
+                                    </div>
+                                    <div class="progress-detail">
+                                        <span class="progress-detail-label">Target Size:</span>
+                                        <span class="progress-detail-value" id="target-size">-</span>
+                                    </div>
+                                    <div class="progress-detail">
+                                        <span class="progress-detail-label">Time Elapsed:</span>
+                                        <span class="progress-detail-value" id="conversion-time-elapsed">00:00</span>
+                                    </div>
+                                    <div class="progress-detail">
+                                        <span class="progress-detail-label">Estimated Time:</span>
+                                        <span class="progress-detail-value" id="conversion-time-remaining">--:--</span>
+                                    </div>
+                                </div>
                             </div>
-                            <p id="upload-status">Preparing to upload...</p>
+                            
+                            <!-- Upload Progress Section -->
+                            <div id="upload-progress" class="progress-section upload-progress" style="display: none;">
+                                <div class="progress-header">
+                                    <div class="progress-title">📤 Uploading to Replay Hub</div>
+                                    <div class="progress-status" id="upload-status">Preparing upload...</div>
+                                </div>
+                                
+                                <div class="progress-bar-container">
+                                    <div id="upload-progress-bar" class="progress-bar uploading" style="width: 0%;">
+                                        <div class="progress-text" id="upload-progress-text">0%</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="progress-details">
+                                    <div class="progress-detail">
+                                        <span class="progress-detail-label">Uploaded:</span>
+                                        <span class="progress-detail-value" id="uploaded-size">0 MB</span>
+                                    </div>
+                                    <div class="progress-detail">
+                                        <span class="progress-detail-label">Remaining:</span>
+                                        <span class="progress-detail-value" id="remaining-size">-</span>
+                                    </div>
+                                    <div class="progress-detail">
+                                        <span class="progress-detail-label">Speed:</span>
+                                        <span class="progress-detail-value" id="upload-speed">-</span>
+                                    </div>
+                                    <div class="progress-detail">
+                                        <span class="progress-detail-label">ETA:</span>
+                                        <span class="progress-detail-value" id="upload-eta">--:--</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Overall Progress Summary -->
+                            <div class="progress-summary">
+                                <div class="progress-header">
+                                    <div class="progress-title">📊 Overall Progress</div>
+                                    <div class="progress-status" id="overall-status">Starting...</div>
+                                </div>
+                                
+                                <div class="progress-bar-container">
+                                    <div id="overall-progress-bar" class="progress-bar" style="width: 0%;">
+                                        <div class="progress-text" id="overall-progress-text">0%</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="modal-footer">
@@ -202,6 +277,9 @@
     
     <!-- Load Video Converter -->
     <script src="js/videoConverter.js"></script>
+    
+    <!-- Load Upload Progress Tracker -->
+    <script src="js/uploadProgress.js"></script>
     
     <!-- Load our application script -->
     <script src="app.js" type="module"></script>

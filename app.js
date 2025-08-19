@@ -761,14 +761,14 @@ async function addReaction(videoId, reactionType) {
     }
 }
 
-async function uploadVideo(formData, progressCallback) {
+async function uploadVideo(formData, progressCallback, progressTracker = null) {
     return new Promise((resolve, reject) => {
         const file = formData.get('file');
         
         // If file is larger than 100MB, use chunked upload
         if (file && file.size > 100 * 1024 * 1024) {
             console.log('Large file detected, using chunked upload');
-            return uploadLargeFile(formData, progressCallback)
+            return uploadLargeFile(formData, progressCallback, progressTracker)
                 .then(resolve)
                 .catch(reject);
         }
@@ -790,6 +790,11 @@ async function uploadVideo(formData, progressCallback) {
             if (event.lengthComputable && progressCallback) {
                 const progress = (event.loaded / event.total) * 100;
                 progressCallback(progress);
+                
+                // Update progress tracker if available
+                if (progressTracker) {
+                    progressTracker.updateUploadProgress(event.loaded, event.total);
+                }
             }
         };
         
@@ -797,6 +802,12 @@ async function uploadVideo(formData, progressCallback) {
             if (xhr.status === 201) {
                 try {
                     const response = JSON.parse(xhr.responseText);
+                    
+                    // Complete progress tracker if available
+                    if (progressTracker) {
+                        progressTracker.complete();
+                    }
+                    
                     resolve(response);
                 } catch (e) {
                     reject(new Error('Invalid response format'));
@@ -818,7 +829,7 @@ async function uploadVideo(formData, progressCallback) {
 }
 
 // Function to handle large file uploads via chunking
-async function uploadLargeFile(formData, progressCallback) {
+async function uploadLargeFile(formData, progressCallback, progressTracker = null) {
     const file = formData.get('file');
     const title = formData.get('title');
     const description = formData.get('description');
@@ -1590,6 +1601,10 @@ function initUploadModal() {
             if (progressContainer) progressContainer.style.display = 'block';
             if (uploadStatus) uploadStatus.textContent = 'Preparing to upload...';
             
+            // Initialize progress tracker
+            const progressTracker = new UploadProgressTracker();
+            progressTracker.startUpload(selectedFile);
+            
             // Check if H.265 conversion is enabled
             const enableConversion = document.getElementById('enable-h265-conversion')?.checked;
             const conversionQuality = document.getElementById('conversion-quality')?.value || 'medium';
@@ -1600,7 +1615,8 @@ function initUploadModal() {
             // Convert video to H.265 if enabled
             if (enableConversion && window.VideoConverter) {
                 try {
-                    if (uploadStatus) uploadStatus.textContent = 'Converting video to H.265...';
+                    // Start conversion phase
+                    progressTracker.startConversion();
                     
                     const converter = new window.VideoConverter();
                     const conversionOptions = {
@@ -1614,7 +1630,9 @@ function initUploadModal() {
                     
                     if (fileToUpload !== selectedFile) {
                         console.log('✅ Video converted successfully');
-                        if (uploadStatus) uploadStatus.textContent = 'Video converted! Starting upload...';
+                        
+                        // Update progress tracker with converted file
+                        progressTracker.startUpload(selectedFile, fileToUpload);
                         
                         // Update conversion status
                         const conversionStatus = document.getElementById('conversion-status');
@@ -1625,15 +1643,18 @@ function initUploadModal() {
                         }
                     } else {
                         console.log('ℹ️ No conversion needed or conversion failed, using original');
-                        if (uploadStatus) uploadStatus.textContent = 'Using original video format...';
+                        progressTracker.startUploadPhase();
                     }
                     
                     converter.destroy();
                 } catch (error) {
                     console.error('❌ Video conversion failed:', error);
-                    if (uploadStatus) uploadStatus.textContent = 'Conversion failed, using original...';
+                    progressTracker.startUploadPhase();
                     fileToUpload = selectedFile; // Fallback to original
                 }
+            } else {
+                // No conversion, start upload phase directly
+                progressTracker.startUploadPhase();
             }
             
             const formData = new FormData();
@@ -1670,7 +1691,7 @@ function initUploadModal() {
                 const response = await uploadVideo(formData, (progress) => {
                     if (uploadProgress) uploadProgress.style.width = `${progress}%`;
                     if (uploadStatus) uploadStatus.textContent = `Uploading... ${Math.round(progress)}%`;
-                });
+                }, progressTracker);
                 
                 console.log('Upload successful:', response);
                 
@@ -1813,7 +1834,7 @@ function initUploadModal() {
                             if (progressBar) progressBar.style.width = `${progress}%`;
                             if (progressText) progressText.textContent = `${Math.round(progress)}%`;
                         }
-                    });
+                    }, progressTracker);
                     
                     // Mark as complete in the list
                     if (uploadList) {
