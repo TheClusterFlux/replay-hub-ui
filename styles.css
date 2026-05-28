@@ -454,6 +454,60 @@ body {
   background: #000;
 }
 
+/* Settings / quality menu — dark theme to match player controls */
+.plyr__menu__container {
+  background: rgba(15, 15, 15, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 13px;
+  min-width: 160px;
+  overflow: hidden;
+}
+
+.plyr__menu__container .plyr__control {
+  color: rgba(255, 255, 255, 0.92);
+  padding: 10px 14px;
+  font-weight: 400;
+}
+
+.plyr__menu__container .plyr__control:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.plyr__menu__container .plyr__control--back {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 2px;
+  font-weight: 500;
+}
+
+.plyr__menu__container .plyr__control[role="menuitemradio"][aria-checked="true"] {
+  background: rgba(255, 0, 0, 0.15);
+  color: #fff;
+}
+
+.plyr__menu__container .plyr__control[role="menuitemradio"][aria-checked="true"]::before {
+  background: var(--primary-color);
+}
+
+.plyr__menu__container .plyr__badge {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 8px;
+}
+
+.plyr__menu__container .plyr__menu__value {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+
 /* Error handling styles */
 .video-error {
   position: absolute;

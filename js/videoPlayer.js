@@ -424,12 +424,12 @@ window.replayHub = window.replayHub || {};
     const uniqueHeights = [...new Set(mapped.map((entry) => entry.height))].sort((a, b) => b - a);
     if (uniqueHeights.length <= 1) return null;
 
-    const defaultHeight = hls.currentLevel >= 0
-      ? mapped[hls.currentLevel]?.height
+    const defaultQuality = hls.currentLevel >= 0
+      ? (mapped[hls.currentLevel]?.height ?? uniqueHeights[0])
       : 0;
 
     return {
-      default: defaultHeight || uniqueHeights[0],
+      default: defaultQuality,
       options: [0, ...uniqueHeights],
       forced: true,
       onChange: (quality) => {
@@ -1463,7 +1463,16 @@ window.replayHub = window.replayHub || {};
           disableContextMenu: false,
           resetOnEnd: false,
           autopause: true,
-          captions: { active: false, language: 'auto', update: false }
+          captions: { active: false, language: 'auto', update: false },
+          i18n: {
+            quality: 'Quality',
+            qualityLabel: { 0: 'Auto' },
+            qualityBadge: {
+              1080: 'HD',
+              720: 'HD',
+              480: 'SD',
+            },
+          },
         };
 
         if (hlsQuality) {
