@@ -402,6 +402,47 @@ window.replayHub = window.replayHub || {};
       }
     };
   }
+
+  function getHlsLevelHeight(level, index) {
+    if (level.height) return level.height;
+    const resolution = level.attrs?.RESOLUTION || '';
+    const resMatch = String(resolution).match(/(\d+)x(\d+)/);
+    if (resMatch) return parseInt(resMatch[2], 10);
+    const src = level.url || level.uri || '';
+    const pathMatch = String(src).match(/\/(\d{3,4})p\//);
+    if (pathMatch) return parseInt(pathMatch[1], 10);
+    return [1080, 720, 480][index] || 480;
+  }
+
+  function buildHlsQualityConfig(hls) {
+    if (!hls?.levels?.length) return null;
+
+    const mapped = hls.levels.map((level, index) => ({
+      index,
+      height: getHlsLevelHeight(level, index),
+    }));
+    const uniqueHeights = [...new Set(mapped.map((entry) => entry.height))].sort((a, b) => b - a);
+    if (uniqueHeights.length <= 1) return null;
+
+    const defaultHeight = hls.currentLevel >= 0
+      ? mapped[hls.currentLevel]?.height
+      : 0;
+
+    return {
+      default: defaultHeight || uniqueHeights[0],
+      options: [0, ...uniqueHeights],
+      forced: true,
+      onChange: (quality) => {
+        if (!currentHls) return;
+        if (quality === 0) {
+          currentHls.currentLevel = -1;
+          return;
+        }
+        const match = mapped.find((entry) => entry.height === quality);
+        if (match) currentHls.currentLevel = match.index;
+      },
+    };
+  }
   
   /**
    * Validate video URL for common issues
@@ -1391,12 +1432,12 @@ window.replayHub = window.replayHub || {};
     try {
       // Wait for video to be ready before initializing Plyr
       const initPlyr = () => {
-        // Plyr configuration optimized for S3 videos
+        const hlsQuality = currentHls ? buildHlsQualityConfig(currentHls) : null;
         const plyrConfig = {
           controls: [
             'play-large',
             'play',
-            'progress', 
+            'progress',
             'current-time',
             'duration',
             'mute',
@@ -1404,7 +1445,7 @@ window.replayHub = window.replayHub || {};
             'settings',
             'fullscreen'
           ],
-          settings: ['speed'], // Remove quality for now as it may cause issues with S3
+          settings: hlsQuality ? ['quality', 'speed'] : ['speed'],
           speed: {
             selected: 1,
             options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
@@ -1412,13 +1453,10 @@ window.replayHub = window.replayHub || {};
           ratio: '16:9',
           loadSprite: true,
           iconUrl: 'https://cdn.plyr.io/3.7.8/plyr.svg',
-          // Remove blank video fallback - it's confusing when debugging
           blankVideo: '',
-          // Conditionally set crossorigin based on whether we're dealing with CORS issues
-          crossorigin: !isS3Url(videoElement.src || videoElement.currentSrc) || 
+          crossorigin: !isS3Url(videoElement.src || videoElement.currentSrc) ||
                       (videoElement.getAttribute('crossorigin') !== null),
           preload: 'metadata',
-          // S3-specific optimizations
           seekTime: 10,
           volume: 1,
           clickToPlay: true,
@@ -1427,6 +1465,10 @@ window.replayHub = window.replayHub || {};
           autopause: true,
           captions: { active: false, language: 'auto', update: false }
         };
+
+        if (hlsQuality) {
+          plyrConfig.quality = hlsQuality;
+        }
         
         currentPlayer = new Plyr(videoElement, plyrConfig);
         
