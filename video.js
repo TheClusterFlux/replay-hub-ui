@@ -347,13 +347,15 @@ async function initializeVideoUI(s3Url, videoId, videoData = null) {
     
     const downloadUrl = videoData?.download_mp4_url || null;
 
-    if (window.Plyr && window.replayHub.videoPlayer) {
+    if (window.replayHub && window.replayHub.videoPlayer) {
       window.replayHub.videoPlayer.initVideoPlayer(s3Url, { downloadUrl });
     } else {
       showErrorMessage('Video player library failed to load');
       console.error('Missing dependencies:', {
         'Plyr': !!window.Plyr,
-        'replayHub.videoPlayer': !!(window.replayHub && window.replayHub.videoPlayer)
+        'Hls': !!window.Hls,
+        'replayHub.videoPlayer': !!(window.replayHub && window.replayHub.videoPlayer),
+        'replayHub.utils': !!(window.replayHub && window.replayHub.utils),
       });
       return;
     }
