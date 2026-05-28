@@ -1,3 +1,5 @@
+import { uploadHlsVideo, fetchAppConfig } from './js/hlsUpload.js';
+
 // Constants
 const ISLOCAL = false;
 export const BASE_URL = ISLOCAL ? 'http://localhost:8080' : 'https://replay-hub.theclusterflux.com';
@@ -1007,13 +1009,14 @@ function createVideoCard(video) {
     }
 
     // Ensure video has essential properties
-    const validS3Url = video.s3_url && typeof video.s3_url === 'string';
+    const validPlaybackUrl = video.s3_url || video.hls_manifest_url;
+    const validS3Url = validPlaybackUrl && typeof validPlaybackUrl === 'string';
     
     // Create the base card element
     const card = document.createElement('div');
     card.className = 'video-card';
     card.dataset.videoId = video.id || '';
-    card.dataset.s3Url = video.s3_url || '';
+    card.dataset.s3Url = video.s3_url || video.hls_manifest_url || '';
     
     // Create the thumbnail container
     const thumbnailContainer = document.createElement('div');
@@ -1135,7 +1138,9 @@ async function initHomePage() {
     }
     
     // Filter out videos without valid s3_url
-    const validVideos = allVideos.filter(video => video && video.s3_url);
+    const validVideos = allVideos.filter(
+      video => video && (video.s3_url || video.hls_manifest_url)
+    );
     
     if (validVideos.length === 0) {
         videoGrid.innerHTML = '<div class="no-videos">No videos available</div>';
@@ -1167,7 +1172,9 @@ function filterVideos(searchTerm) {
     videoGrid.innerHTML = '';
     
     // Filter videos with valid s3_url first, then apply search filter
-    const validVideos = allVideos.filter(video => video && video.s3_url);
+    const validVideos = allVideos.filter(
+      video => video && (video.s3_url || video.hls_manifest_url)
+    );
     
     const filteredVideos = searchTerm 
         ? validVideos.filter(video => {
@@ -1601,97 +1608,46 @@ function initUploadModal() {
             if (progressContainer) progressContainer.style.display = 'block';
             if (uploadStatus) uploadStatus.textContent = 'Preparing to upload...';
             
-            // Initialize progress tracker
             const progressTracker = new UploadProgressTracker();
             progressTracker.startUpload(selectedFile);
-            
-            // Check if H.265 conversion is enabled
-            const enableConversion = document.getElementById('enable-h265-conversion')?.checked;
-            const conversionQuality = document.getElementById('conversion-quality')?.value || 'medium';
-            const maxResolution = document.getElementById('max-resolution')?.value || '1080p';
-            
-            let fileToUpload = selectedFile;
-            
-            // Convert video to H.265 if enabled
-            if (enableConversion && window.VideoConverter) {
-                try {
-                    // Start conversion phase
-                    progressTracker.startConversion();
-                    
-                    const converter = new window.VideoConverter();
-                    const conversionOptions = {
-                        quality: conversionQuality,
-                        maxWidth: this.getResolutionWidth(maxResolution),
-                        maxHeight: this.getResolutionHeight(maxResolution)
-                    };
-                    
-                    console.log('🔄 Converting video with options:', conversionOptions);
-                    fileToUpload = await converter.convertToH265(selectedFile, conversionOptions);
-                    
-                    if (fileToUpload !== selectedFile) {
-                        console.log('✅ Video converted successfully');
-                        
-                        // Update progress tracker with converted file
-                        progressTracker.startUpload(selectedFile, fileToUpload);
-                        
-                        // Update conversion status
-                        const conversionStatus = document.getElementById('conversion-status');
-                        if (conversionStatus) {
-                            const sizeReduction = ((selectedFile.size - fileToUpload.size) / selectedFile.size * 100).toFixed(1);
-                            conversionStatus.textContent = `Converted! ${sizeReduction}% smaller`;
-                            conversionStatus.style.color = '#28a745';
-                        }
-                    } else {
-                        console.log('ℹ️ No conversion needed or conversion failed, using original');
-                        progressTracker.startUploadPhase();
-                    }
-                    
-                    converter.destroy();
-                } catch (error) {
-                    console.error('❌ Video conversion failed:', error);
-                    progressTracker.startUploadPhase();
-                    fileToUpload = selectedFile; // Fallback to original
-                }
-            } else {
-                // No conversion, start upload phase directly
-                progressTracker.startUploadPhase();
-            }
-            
-            const formData = new FormData();
-            formData.append('file', fileToUpload);
-            formData.append('title', titleInput.value);
-            formData.append('description', descriptionInput.value);
-            formData.append('uploader', uploaderInput.value);
-            formData.append('s3', 'true'); // Always upload to S3
-            
-            // Add conversion metadata
-            if (fileToUpload !== selectedFile) {
-                formData.append('converted_to_h265', 'true');
-                formData.append('original_size', selectedFile.size.toString());
-                formData.append('converted_size', fileToUpload.size.toString());
-            }
-            
-            // Add players if available
-            if (playersInput && playersInput.value) {
-                const players = playersInput.value.split(',').map(player => player.trim());
-                formData.append('players', JSON.stringify(players));
-            }
-            
-            console.log('FormData created:', {
-                fileName: selectedFile.name,
-                fileSize: selectedFile.size,
+
+            const meta = {
                 title: titleInput.value.trim(),
                 description: descriptionInput.value.trim(),
                 uploader: uploaderInput.value.trim(),
-                players: playersInput ? playersInput.value : ''
-            });
-            
+                players: playersInput && playersInput.value
+                    ? playersInput.value.split(',').map((p) => p.trim())
+                    : [],
+            };
+
             try {
-                console.log('Starting upload...');
-                const response = await uploadVideo(formData, (progress) => {
-                    if (uploadProgress) uploadProgress.style.width = `${progress}%`;
-                    if (uploadStatus) uploadStatus.textContent = `Uploading... ${Math.round(progress)}%`;
-                }, progressTracker);
+                const config = await fetchAppConfig();
+                let response;
+
+                if (config.encoding_strategy === 'CLIENT') {
+                    console.log('Using client-side HLS encoding + R2 upload');
+                    progressTracker.startConversion();
+                    response = await uploadHlsVideo(selectedFile, meta, ({ phase, percent }) => {
+                        if (uploadProgress) uploadProgress.style.width = `${percent}%`;
+                        if (uploadStatus) uploadStatus.textContent = `${phase}… ${Math.round(percent)}%`;
+                    });
+                } else {
+                    const formData = new FormData();
+                    formData.append('file', selectedFile);
+                    formData.append('title', meta.title);
+                    formData.append('description', meta.description);
+                    formData.append('uploader', meta.uploader);
+                    formData.append('s3', 'true');
+                    if (meta.players.length) {
+                        formData.append('players', JSON.stringify(meta.players));
+                    }
+                    progressTracker.startUploadPhase();
+                    console.log('Using server-side encoding upload');
+                    response = await uploadVideo(formData, (progress) => {
+                        if (uploadProgress) uploadProgress.style.width = `${progress}%`;
+                        if (uploadStatus) uploadStatus.textContent = `Uploading… ${Math.round(progress)}%`;
+                    }, progressTracker);
+                }
                 
                 console.log('Upload successful:', response);
                 

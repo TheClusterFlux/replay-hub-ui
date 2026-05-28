@@ -123,11 +123,25 @@ window.replayHub = window.replayHub || {};
       return { accessible: true, corsError: false, suggestedFix: '', contentTypeIssue: false };
     }
   }
+  function setupDownloadButton(downloadUrl) {
+    const btn = document.getElementById('download-video-btn');
+    if (!btn) return;
+    if (downloadUrl) {
+      btn.href = downloadUrl;
+      btn.style.display = 'inline-flex';
+      btn.setAttribute('download', '');
+    } else {
+      btn.style.display = 'none';
+      btn.removeAttribute('href');
+    }
+  }
+
   /**
    * Initialize the video player with the given URL
-   * @param {string} videoUrl - The URL of the video to play
+   * @param {string} videoUrl - HLS manifest or direct video URL
+   * @param {{ downloadUrl?: string }} options
    */
-  async function initVideoPlayer(videoUrl) {
+  async function initVideoPlayer(videoUrl, options = {}) {
     const videoPlayer = document.getElementById('video-player');
     const videoEmbed = document.getElementById('video-embed');
     
@@ -158,7 +172,7 @@ window.replayHub = window.replayHub || {};
     let processedUrl = videoUrl.trim();    
     
     // For S3 URLs, test accessibility and handle CORS issues
-    if (isS3Url(processedUrl)) {
+    if (isS3Url(processedUrl) && !isReplayHubStreamUrl(processedUrl)) {
       try {
         const accessResult = await testVideoAccessibility(processedUrl);
         if (accessResult.corsError) {
@@ -195,11 +209,12 @@ window.replayHub = window.replayHub || {};
       videoEmbed.style.display = 'none';
       
       if (isHlsStream && window.Hls && Hls.isSupported()) {
-        // Use HLS.js for HLS streams
         initHlsPlayer(videoPlayer, processedUrl);
       } else {
-        // Use direct video source
-        initDirectPlayer(videoPlayer, processedUrl, videoType);      }
+        initDirectPlayer(videoPlayer, processedUrl, videoType);
+      }
+
+      setupDownloadButton(options.downloadUrl);
       
     } catch (err) {
       console.error('Error setting up video player:', err);
@@ -220,12 +235,18 @@ window.replayHub = window.replayHub || {};
     }
     
     try {
-      currentHls = new Hls({
+      const hlsConfig = {
         debug: false,
         enableWorker: true,
         lowLatencyMode: false,
-        backBufferLength: 90
-      });
+        backBufferLength: 90,
+      };
+
+      if (isReplayHubStreamUrl(videoUrl)) {
+        hlsConfig.loader = buildSlidingWindowLoader(() => videoElement.currentTime);
+      }
+
+      currentHls = new Hls(hlsConfig);
       
       currentHls.loadSource(videoUrl);
       currentHls.attachMedia(videoElement);
@@ -359,6 +380,27 @@ window.replayHub = window.replayHub || {};
            url.includes('s3.') || 
            url.includes('.s3.') ||
            url.includes('s3-');
+  }
+
+  /**
+   * Replay Hub API stream URLs (presigned HLS via /stream/*).
+   */
+  function isReplayHubStreamUrl(url) {
+    return typeof url === 'string' && url.includes('/stream/');
+  }
+
+  function buildSlidingWindowLoader(getCurrentTime) {
+    const BaseLoader = Hls.DefaultConfig.loader;
+    return class SlidingWindowPlaylistLoader extends BaseLoader {
+      load(context, config, callbacks) {
+        const url = context.url || '';
+        if (isReplayHubStreamUrl(url) && url.includes('.m3u8') && !url.includes('master.m3u8')) {
+          const t = Math.max(0, Math.floor((getCurrentTime() || 0) - 30));
+          context.url = `${url.split('?')[0]}?t=${t}`;
+        }
+        return super.load(context, config, callbacks);
+      }
+    };
   }
   
   /**

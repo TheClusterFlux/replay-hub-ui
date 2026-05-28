@@ -39,6 +39,9 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "10g"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header Cross-Origin-Opener-Policy "same-origin" always;
+      add_header Cross-Origin-Embedder-Policy "require-corp" always;
 spec:
   ingressClassName: nginx
   tls:

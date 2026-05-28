@@ -36,7 +36,10 @@ async function initVideoPage() {
     await waitForModulesReady();
     
     // Step 5: Initialize video with complete context (auth + data)
-    await initializeVideoUI(s3Url || (videoData ? videoData.s3_url : null), videoId, videoData);
+    const manifestUrl = s3Url
+      || (videoData && (videoData.hls_manifest_url || videoData.s3_url))
+      || null;
+    await initializeVideoUI(manifestUrl, videoId, videoData);
     
     // Step 6: Ensure meta tags are updated for social media sharing
     if (window.replayHub && window.replayHub.socialMediaMeta) {
@@ -216,8 +219,8 @@ async function initializeVideoFromId(videoId) {
       throw new Error('No video data returned from server');
     }
     
-    if (!videoData.s3_url) {
-      throw new Error('Video metadata is missing S3 URL');
+    if (!videoData.s3_url && !videoData.hls_manifest_url) {
+      throw new Error('Video metadata is missing playback URL');
     }
     
     return videoData;
@@ -317,7 +320,6 @@ async function initializeVideoFromId(videoId) {
  */
 async function initializeVideoUI(s3Url, videoId, videoData = null) {
   try {
-    // Wait to ensure modules are initialized
     await waitForModulesReady();
     
     const videoPlayer = document.getElementById('video-player');
@@ -325,15 +327,28 @@ async function initializeVideoUI(s3Url, videoId, videoData = null) {
       showErrorMessage('Video player could not be loaded');
       return;
     }
-      // Initialize video player - but only if we have a valid s3Url
+
+    const encodingStatus = videoData?.encoding_status;
+    if (encodingStatus === 'pending' || encodingStatus === 'processing') {
+      showErrorMessage('This video is still being encoded. Please check back in a few minutes.');
+      if (videoId) pollEncodingUntilReady(videoId);
+      return;
+    }
+    if (encodingStatus === 'failed') {
+      showErrorMessage('Video encoding failed. Please re-upload or contact support.');
+      return;
+    }
+
     if (!s3Url) {
-      console.error('Cannot initialize video player: s3Url is null or empty');
+      console.error('Cannot initialize video player: manifest URL is missing');
       showErrorMessage('Video URL not available. Please check the video link.');
       return;
     }
     
+    const downloadUrl = videoData?.download_mp4_url || null;
+
     if (window.Plyr && window.replayHub.videoPlayer) {
-      window.replayHub.videoPlayer.initVideoPlayer(s3Url);
+      window.replayHub.videoPlayer.initVideoPlayer(s3Url, { downloadUrl });
     } else {
       showErrorMessage('Video player library failed to load');
       console.error('Missing dependencies:', {
@@ -401,6 +416,28 @@ async function initializeVideoUI(s3Url, videoId, videoData = null) {
   } catch (err) {
     console.error("Error initializing video:", err);
     showErrorMessage('Error initializing video: ' + (err.message || 'Unknown error'));
+  }
+}
+
+/**
+ * Poll server encoding status and reload when the HLS manifest is ready.
+ */
+async function pollEncodingUntilReady(videoId) {
+  const base = window.BASE_URL || 'https://replay-hub.theclusterflux.com';
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    await new Promise((r) => setTimeout(r, 5000));
+    try {
+      const res = await fetch(`${base}/api/videos/${videoId}/encoding-status`);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data.encoding_status === 'ready' && data.hls_manifest_url) {
+        window.location.reload();
+        return;
+      }
+      if (data.encoding_status === 'failed') return;
+    } catch (err) {
+      console.warn('Encoding status poll failed:', err);
+    }
   }
 }
 
