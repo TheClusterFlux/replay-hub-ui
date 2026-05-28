@@ -240,6 +240,9 @@ window.replayHub = window.replayHub || {};
         enableWorker: true,
         lowLatencyMode: false,
         backBufferLength: 90,
+        maxBufferHole: 0.5,
+        startFragPrefetch: true,
+        capLevelToPlayerSize: false,
       };
 
       if (isReplayHubStreamUrl(videoUrl)) {
@@ -414,7 +417,7 @@ window.replayHub = window.replayHub || {};
     return [1080, 720, 480][index] || 480;
   }
 
-  function buildHlsQualityConfig(hls) {
+  function buildHlsQualityConfig(hls, videoElement) {
     if (!hls?.levels?.length) return null;
 
     const mapped = hls.levels.map((level, index) => ({
@@ -432,16 +435,46 @@ window.replayHub = window.replayHub || {};
       default: defaultQuality,
       options: [0, ...uniqueHeights],
       forced: true,
-      onChange: (quality) => {
-        if (!currentHls) return;
-        if (quality === 0) {
-          currentHls.currentLevel = -1;
-          return;
-        }
-        const match = mapped.find((entry) => entry.height === quality);
-        if (match) currentHls.currentLevel = match.index;
-      },
+      onChange: (quality) => applyHlsQuality(hls, mapped, quality, videoElement),
     };
+  }
+
+  function applyHlsQuality(hls, mapped, quality, videoElement) {
+    const wasPlaying = videoElement && !videoElement.paused && !videoElement.ended;
+
+    if (quality === 0) {
+      hls.nextLevel = -1;
+      hls.currentLevel = -1;
+      if (wasPlaying && videoElement.paused) {
+        videoElement.play().catch(() => {});
+      }
+      return;
+    }
+
+    const match = mapped.find((entry) => entry.height === quality);
+    if (!match || hls.currentLevel === match.index) return;
+
+    // Switch at the next segment boundary — avoids flushing buffer / stopping playback
+    hls.nextLevel = match.index;
+
+    const onSwitched = (_, data) => {
+      if (data.level !== match.index) return;
+      hls.off(Hls.Events.LEVEL_SWITCHED, onSwitched);
+      hls.currentLevel = match.index;
+      if (wasPlaying && videoElement.paused) {
+        videoElement.play().catch(() => {});
+      }
+    };
+    hls.on(Hls.Events.LEVEL_SWITCHED, onSwitched);
+
+    if (wasPlaying) {
+      hls.startLoad(-1);
+      requestAnimationFrame(() => {
+        if (videoElement.paused && !videoElement.ended) {
+          videoElement.play().catch(() => {});
+        }
+      });
+    }
   }
   
   /**
@@ -1432,7 +1465,7 @@ window.replayHub = window.replayHub || {};
     try {
       // Wait for video to be ready before initializing Plyr
       const initPlyr = () => {
-        const hlsQuality = currentHls ? buildHlsQualityConfig(currentHls) : null;
+        const hlsQuality = currentHls ? buildHlsQualityConfig(currentHls, videoElement) : null;
         const plyrConfig = {
           controls: [
             'play-large',
