@@ -1,7 +1,7 @@
-import { uploadHlsVideo, fetchAppConfig, BrowserEncodingError } from './js/hlsUpload.js';
+import { uploadHlsVideo, fetchAppConfig, BrowserEncodingError } from './js/hlsUpload.js?v=20261111a';
 
 // Constants
-import { BASE_URL } from './js/config.js';
+import { BASE_URL } from './js/config.js?v=20261111a';
 export { BASE_URL };
 
 // Make BASE_URL available globally for non-module scripts

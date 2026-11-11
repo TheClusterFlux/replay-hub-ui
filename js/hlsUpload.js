@@ -2,9 +2,9 @@
  * Client-side HLS upload: encode in browser → presigned PUT → complete.
  */
 
-import { encodeVideoToHls, isClientEncodingSupported } from './hlsEncoder.js';
+import { encodeVideoToHls, isClientEncodingSupported } from './hlsEncoder.js?v=20261111a';
 
-import { BASE_URL } from './config.js';
+import { BASE_URL } from './config.js?v=20261111a';
 
 let cachedConfig = null;
 
