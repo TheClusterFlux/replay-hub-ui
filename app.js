@@ -1022,19 +1022,31 @@ function createVideoCard(video) {
     const thumbnailContainer = document.createElement('div');
     thumbnailContainer.className = 'thumbnail-container';
     
-    // Create the thumbnail image
-    const thumbnail = document.createElement('img');
-    thumbnail.className = 'thumbnail';
-    thumbnail.src = video.thumbnail_id ? `${BASE_URL}/thumbnail/${video.thumbnail_id}` : 'assets/placeholder.jpg';
-    thumbnail.alt = `${video.title || 'Video'} Thumbnail`;
-    
+    const ready = !video.encoding_status || video.encoding_status === 'ready';
+    const thumbnailUrl = video.thumbnail_id
+        ? BASE_URL + '/thumbnail/' + encodeURIComponent(video.thumbnail_id)
+        : null;
+    const posterUrl = video.poster_url || (video.storage_prefix && video.id
+        ? BASE_URL + '/stream/' + encodeURIComponent(video.id) + '/poster.jpg'
+        : null);
+    if (ready && (thumbnailUrl || posterUrl)) {
+        const thumbnail = document.createElement('img');
+        thumbnail.className = 'thumbnail';
+        thumbnail.alt = (video.title || 'Video') + ' thumbnail';
+        // The gallery uses COEP. Request cross-origin images in CORS mode.
+        thumbnail.crossOrigin = 'anonymous';
+        if (thumbnailUrl && posterUrl && thumbnailUrl !== posterUrl) {
+            thumbnail.addEventListener('error', () => { thumbnail.src = posterUrl; }, { once: true });
+        }
+        thumbnail.src = thumbnailUrl || posterUrl;
+        thumbnailContainer.appendChild(thumbnail);
+    }
+
     // Create the duration badge
     const duration = document.createElement('span');
     duration.className = 'video-duration';
     duration.textContent = formatDuration(video.duration || 0);
     
-    // Add them to the thumbnail container
-    thumbnailContainer.appendChild(thumbnail);
     thumbnailContainer.appendChild(duration);
     
     // Create video info section
