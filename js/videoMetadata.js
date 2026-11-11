@@ -15,7 +15,7 @@ window.replayHub = window.replayHub || {};
 
   // Get utility functions from the utils module
   const { formatViews, formatDate, formatVideoTitle, extractUUID } = window.replayHub.utils;
-  const BASE_URL = window.BASE_URL;
+  const BASE_URL = window.replayHub.utils.BASE_URL;
 
   /**
    * Fetch video details from the server
@@ -283,6 +283,8 @@ window.replayHub = window.replayHub || {};
     // Set video poster if thumbnail is available
     if (videoData.thumbnail_id) {
       updateThumbnail(videoData.thumbnail_id);
+    } else if (videoData.poster_url) {
+      document.getElementById("video-player").poster = videoData.poster_url;
     }
     
     // Show edit controls if current user is the uploader
@@ -355,9 +357,12 @@ window.replayHub = window.replayHub || {};
       
       // Update players content
       if (videoPlayers) {
-        videoPlayers.innerHTML = players.map(player => 
-          `<span class="player-tag">${player}</span>`
-        ).join('');
+        videoPlayers.replaceChildren(...players.map(player => {
+          const tag = document.createElement('span');
+          tag.className = 'player-tag';
+          tag.textContent = player;
+          return tag;
+        }));
       }
     } else {
       // Hide players section if no players
@@ -412,11 +417,8 @@ window.replayHub = window.replayHub || {};
     });
     
     // Check if current user is the uploader using multiple strategies
-    const isOwner = videoData.uploader_id === currentUser.id ||
-                   videoData.uploader_username === currentUser.username ||
-                   videoData.uploader === currentUser.username ||
-                   videoData.uploader === currentUser.display_name ||
-                   videoData.user_id === currentUser.id;
+    const ownerId = videoData.uploader_id || videoData.user_id;
+    const isOwner = ownerId ? ownerId === currentUser.id : videoData.uploader === currentUser.username;
     
     console.log('🔐 Ownership check result:', {
       'uploader_id === currentUser.id': videoData.uploader_id === currentUser.id,
@@ -740,7 +742,7 @@ window.replayHub = window.replayHub || {};
               updatePlayersSection(processedValue);
             } else {
               window.currentVideoData[field] = newValue;
-              element.innerHTML = newValue;
+              element.textContent = newValue;
             }
             
             if (field === 'title') {
@@ -804,7 +806,7 @@ window.replayHub = window.replayHub || {};
         </div>
         <div class="delete-confirmation-body">
           <p><strong>Are you sure you want to delete this video?</strong></p>
-          <p class="video-title-preview">"${window.currentVideoData.title}"</p>
+          <p class="video-title-preview"></p>
           <div class="delete-warning">
             <i class="fas fa-warning"></i>
             This action cannot be undone. The video, all comments, reactions, and saved bookmarks will be permanently deleted.
@@ -820,6 +822,7 @@ window.replayHub = window.replayHub || {};
       </div>
     `;
 
+    modal.querySelector('.video-title-preview').textContent = window.currentVideoData.title;
     document.body.appendChild(modal);
 
     // Add event listeners

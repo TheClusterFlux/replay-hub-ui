@@ -146,17 +146,6 @@ async function initVideoPageAuth() {
 
   await waitForAppJS();
   
-  // Initialize authentication buttons and upload modal
-  if (typeof initAuthButtons === 'function') {
-    initAuthButtons();
-    console.log('Auth buttons initialized');
-  }
-  
-  if (typeof initUploadModal === 'function') {
-    initUploadModal();
-    console.log('Upload modal initialized');
-  }
-  
   // Check if we already have auth state from auth.js
   if (window.replayHub && window.replayHub.authState && window.replayHub.authState.isAuthenticated) {
     console.log('Using cached auth state from auth.js');
@@ -228,89 +217,8 @@ async function initializeVideoFromId(videoId) {
   } catch (error) {
     console.error('Error fetching video metadata:', error);
     
-    let errorMessage = 'Video not found or failed to load';
-    let detailedError = '';
-    
-    // Provide more specific error messages
-    if (error.message && error.message.includes('NetworkError')) {
-      errorMessage = 'Cannot connect to video service';
-      detailedError = `
-        <div style="background: #f5f5f5; padding: 15px; border-radius: 4px; margin: 15px 0; text-align: left;">
-          <h4>🌐 Connection Issue</h4>
-          <p><strong>Cannot reach the backend service.</strong></p>
-          <p>Attempted URL: <code>${window.BASE_URL}/metadata/${videoId}</code></p>
-          <h5>Possible causes:</h5>
-          <ul>
-            <li>Backend service is not running</li>
-            <li>Network connectivity issues</li>
-            <li>Incorrect BASE_URL configuration</li>
-            <li>Firewall blocking the connection</li>
-          </ul>
-        </div>
-      `;
-    } else if (error.message && error.message.includes('not found')) {
-      errorMessage = 'Video not found';
-      detailedError = `
-        <div style="background: #f5f5f5; padding: 15px; border-radius: 4px; margin: 15px 0; text-align: left;">
-          <h4>📹 Video Not Found</h4>
-          <p>Video ID "<code>${videoId}</code>" does not exist in the database.</p>
-          <p>This could mean:</p>
-          <ul>
-            <li>The video was deleted</li>
-            <li>The video ID is incorrect</li>
-            <li>The database is not properly synchronized</li>
-          </ul>
-        </div>
-      `;
-    } else if (error.message && error.message.includes('Server error')) {
-      errorMessage = 'Server error';
-      detailedError = `
-        <div style="background: #f5f5f5; padding: 15px; border-radius: 4px; margin: 15px 0; text-align: left;">
-          <h4>🔧 Server Error</h4>
-          <p><strong>The video service is experiencing issues.</strong></p>
-          <p>This usually means there's an issue with the server configuration or database connection.</p>
-        </div>
-      `;
-    }
-    
-    // Show enhanced error message
-    if (window.replayHub && window.replayHub.utils) {
-      const main = document.querySelector('main') || document.querySelector('.video-container');
-      if (main && detailedError) {
-        main.innerHTML = `
-          <div class="error-message">
-            <h2>Error</h2>
-            <p>${errorMessage}</p>
-            ${detailedError}
-            <div style="margin-top: 20px;">
-              <button onclick="window.location.reload()" style="
-                background: #007cba;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 4px;
-                cursor: pointer;
-                margin: 5px;
-              ">Retry</button>
-              <a href="index.html" style="
-                background: #6c757d;
-                color: white;
-                text-decoration: none;
-                padding: 10px 20px;
-                border-radius: 4px;
-                margin: 5px;
-                display: inline-block;
-              ">Back to Home</a>
-            </div>
-          </div>
-        `;
-      } else {
-        window.replayHub.utils.showError(errorMessage);
-      }
-    } else {
-      alert(`Error: ${errorMessage}`);
-    }
-    
+    showErrorMessage(error.message?.includes('not found') ? 'Video not found.' :
+      'Could not load this video. Check the link or try again.');
     return null;
   }
 }
@@ -330,12 +238,21 @@ async function initializeVideoUI(s3Url, videoId, videoData = null) {
 
     const encodingStatus = videoData?.encoding_status;
     if (encodingStatus === 'pending' || encodingStatus === 'processing') {
-      showErrorMessage('This video is still being encoded. Please check back in a few minutes.');
-      if (videoId) pollEncodingUntilReady(videoId);
+      const container = document.querySelector('.video-container');
+      const heading = document.createElement('h1');
+      heading.textContent = videoData.title || 'Replay';
+      const status = document.createElement('p');
+      status.setAttribute('role', 'status');
+      status.textContent = encodingMessage(encodingStatus);
+      const back = document.createElement('a');
+      back.href = 'index.html';
+      back.textContent = 'Back to library';
+      container.replaceChildren(heading, status, back);
+      if (videoId) pollEncodingUntilReady(videoId, status);
       return;
     }
     if (encodingStatus === 'failed') {
-      showErrorMessage('Video encoding failed. Please re-upload or contact support.');
+      showErrorMessage(videoData.encoding_error || 'Video encoding failed. Try a smaller clip.');
       return;
     }
 
@@ -424,19 +341,35 @@ async function initializeVideoUI(s3Url, videoId, videoData = null) {
 /**
  * Poll server encoding status and reload when the HLS manifest is ready.
  */
-async function pollEncodingUntilReady(videoId) {
+function encodingMessage(state) {
+  return state === 'pending'
+    ? 'Queued for server encoding. Playback will open here when the replay is ready.'
+    : 'The server is encoding this replay. Playback will open here when it is ready.';
+}
+
+async function pollEncodingUntilReady(videoId, status) {
   const base = window.BASE_URL || 'https://replay-hub.theclusterflux.com';
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    await new Promise((r) => setTimeout(r, 5000));
+  while (true) {
+    await new Promise((r) => setTimeout(r, document.hidden ? 30000 : 5000));
     try {
       const res = await fetch(`${base}/api/videos/${videoId}/encoding-status`);
       if (!res.ok) continue;
       const data = await res.json();
+      if (data.found === false) {
+        showErrorMessage('This video is no longer available.');
+        return;
+      }
+      if (['pending', 'processing'].includes(data.encoding_status)) {
+        status.textContent = encodingMessage(data.encoding_status);
+      }
       if (data.encoding_status === 'ready' && data.hls_manifest_url) {
         window.location.reload();
         return;
       }
-      if (data.encoding_status === 'failed') return;
+      if (data.encoding_status === 'failed') {
+        showErrorMessage(data.encoding_error || 'Video encoding failed. Try a smaller clip.');
+        return;
+      }
     } catch (err) {
       console.warn('Encoding status poll failed:', err);
     }
@@ -457,10 +390,11 @@ function showErrorMessage(message) {
       main.innerHTML = `
         <div class="error-message">
           <h2>Error</h2>
-          <p>${message}</p>
+          <p></p>
           <a href="index.html">Back to Home</a>
         </div>
       `;
+    main.querySelector('.error-message p').textContent = message;
     } else {
       alert(message);
     }

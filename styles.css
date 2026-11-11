@@ -64,6 +64,7 @@ body {
 }
 
 .search-container input {
+  min-width: 0;
   flex: 1;
   padding: 8px 16px;
   border: 1px solid var(--border-color);
@@ -1397,11 +1398,22 @@ body {
 
 @media (max-width: 576px) {
   .header {
-    padding: 0 8px;
+    height: auto;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px 8px;
   }
 
+  .logo { font-size: 1.15rem; }
+  .user-actions { gap: 4px; flex-wrap: wrap; }
+  .user-actions button { margin: 0; padding: 7px 9px; }
+  .user-actions .username { max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+  .video-actions, .owner-controls-actions { flex-wrap: wrap; }
+
   .search-container {
-    margin: 0 8px;
+    order: 1;
+    flex: 1 0 100%;
+    margin: 0;
   }
 
   .main-content {
@@ -2169,4 +2181,10 @@ body {
 .progress-container:hover {
     box-shadow: 0 4px 16px rgba(0,0,0,0.15);
     transition: box-shadow 0.3s ease;
+}
+
+#progress-container > .progress-bar,
+.file-progress > .progress-bar {
+  height: 6px;
+  background: var(--border-color);
 }

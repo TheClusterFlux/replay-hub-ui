@@ -182,10 +182,11 @@ function showError(message) {
     main.innerHTML = `
       <div class="error-message">
         <h2>Error</h2>
-        <p>${message}</p>
+        <p></p>
         <a href="index.html">Back to Home</a>
       </div>
     `;
+    main.querySelector('.error-message p').textContent = message;
   } else {
     // As a last resort, use alert
     alert(message);

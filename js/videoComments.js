@@ -926,15 +926,15 @@ window.replayHub = window.replayHub || {};
         </div>
         <div class="share-modal-body">
           <div class="share-preview">
-            <h4>${title}</h4>
-            ${description ? `<p class="share-description">${shortDescription}</p>` : ''}
+            <h4></h4>
+            ${description ? `<p class="share-description"></p>` : ''}
             <p class="share-note">📱 This video will show a rich preview with thumbnail when shared on Discord, WhatsApp, and other platforms!</p>
           </div>
           
           <div class="share-url-container">
             <label for="share-url">Video Link:</label>
             <div class="url-input-group">
-              <input type="text" id="share-url" value="${url}" readonly class="share-url-input">
+              <input type="text" id="share-url" readonly class="share-url-input">
               <button class="copy-url-btn">
                 <i class="fas fa-copy"></i> Copy
               </button>
@@ -977,6 +977,10 @@ window.replayHub = window.replayHub || {};
       </div>
     `;
     
+    modal.querySelector('.share-preview h4').textContent = title;
+    if (description) modal.querySelector('.share-description').textContent = shortDescription;
+    modal.querySelector('#share-url').value = url;
+
     // Add enhanced styles
     modal.style.cssText = `
       position: fixed;

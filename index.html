@@ -21,12 +21,13 @@
             </a>
         </div>
         
-        <div class="search-container">
-            <input type="text" id="search-bar" placeholder="Search videos...">
-            <button id="search-button">
+        <form class="search-container" action="index.html" role="search">
+            <input type="text" id="search-bar" name="q" aria-label="Search videos" placeholder="Search videos...">
+            <button id="search-button" aria-label="Search">
                 <i class="fas fa-search"></i>
             </button>
-        </div>        <div class="user-actions">
+        </form>
+        <div class="user-actions">
             <button id="login-button" class="login-btn">
                 Login
             </button>
@@ -96,155 +97,43 @@
                                 <i class="fas fa-cloud-upload-alt"></i>
                             </div>
                             <p class="dropzone-text">Drag and drop a video here or click to select</p>
-                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Max 10GB.</p>
+                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Large files use server encoding.</p>
                         </div>
                         
                         <div class="form-group">
-                            <label for="video-uploader">Username</label>
-                            <input type="text" id="video-uploader" class="form-control" placeholder="Your username (required)">
+                            <label for="upload-uploader">Username</label>
+                            <input type="text" id="upload-uploader" class="form-control" placeholder="Your username (required)">
                         </div>
                         
                         <div class="form-group">
-                            <label for="video-title">Title</label>
-                            <input type="text" id="video-title" class="form-control" placeholder="Video title (required)">
+                            <label for="upload-title">Title</label>
+                            <input type="text" id="upload-title" class="form-control" placeholder="Video title (required)">
                         </div>
                         
                         <div class="form-group">
-                            <label for="video-description">Description</label>
-                            <textarea id="video-description" class="form-control" placeholder="Video description (required)"></textarea>
+                            <label for="upload-description">Description</label>
+                            <textarea id="upload-description" class="form-control" placeholder="Video description (required)"></textarea>
                         </div>
                         
                         <div class="form-group">
-                            <label for="video-players">Players in clip</label>
-                            <input type="text" id="video-players" class="form-control" placeholder="Comma-separated list of players (optional)">
+                            <label for="upload-players">Players in clip</label>
+                            <input type="text" id="upload-players" class="form-control" placeholder="Comma-separated list of players (optional)">
                             <small class="form-text text-muted">Enter player names separated by commas (e.g. "Player1, Player2, Player3")</small>
                         </div>
                         
-                        <!-- H.265 Conversion Options -->
-                        <div class="form-group">
-                            <label class="form-label">Video Optimization</label>
-                            <div class="conversion-options">
-                                <label class="checkbox-label">
-                                    <input type="checkbox" id="enable-h265-conversion" checked>
-                                    <span class="checkmark"></span>
-                                    Convert to H.265 for better compression
-                                </label>
-                                <small class="form-text text-muted">
-                                    H.265 videos are ~50% smaller with the same quality. 
-                                    <span id="conversion-status" class="conversion-status"></span>
-                                </small>
-                            </div>
-                            
-                            <div id="conversion-settings" class="conversion-settings">
-                                <div class="setting-group">
-                                    <label for="conversion-quality">Quality:</label>
-                                    <select id="conversion-quality" class="form-control">
-                                        <option value="low">Low (smaller file)</option>
-                                        <option value="medium" selected>Medium (balanced)</option>
-                                        <option value="high">High (larger file)</option>
-                                    </select>
-                                </div>
-                                
-                                <div class="setting-group">
-                                    <label for="max-resolution">Max Resolution:</label>
-                                    <select id="max-resolution" class="form-control">
-                                        <option value="720p">720p</option>
-                                        <option value="1080p" selected>1080p</option>
-                                        <option value="1440p">1440p</option>
-                                        <option value="4k">4K</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        
                         <div id="progress-container" class="progress-container" style="display: none;">
-                            <!-- Conversion Progress Section -->
-                            <div id="conversion-progress" class="progress-section conversion-progress" style="display: none;">
-                                <div class="progress-header">
-                                    <div class="progress-title">🔄 Converting Video to H.265</div>
-                                    <div class="progress-status" id="conversion-status">Preparing conversion...</div>
-                                </div>
-                                
-                                <div class="progress-bar-container">
-                                    <div id="conversion-progress-bar" class="progress-bar converting" style="width: 0%;">
-                                        <div class="progress-text" id="conversion-progress-text">0%</div>
-                                    </div>
-                                </div>
-                                
-                                <div class="progress-details">
-                                    <div class="progress-detail">
-                                        <span class="progress-detail-label">Original Size:</span>
-                                        <span class="progress-detail-value" id="original-size">-</span>
-                                    </div>
-                                    <div class="progress-detail">
-                                        <span class="progress-detail-label">Target Size:</span>
-                                        <span class="progress-detail-value" id="target-size">-</span>
-                                    </div>
-                                    <div class="progress-detail">
-                                        <span class="progress-detail-label">Time Elapsed:</span>
-                                        <span class="progress-detail-value" id="conversion-time-elapsed">00:00</span>
-                                    </div>
-                                    <div class="progress-detail">
-                                        <span class="progress-detail-label">Estimated Time:</span>
-                                        <span class="progress-detail-value" id="conversion-time-remaining">--:--</span>
-                                    </div>
-                                </div>
+                            <div class="progress-bar">
+                                <div id="upload-progress" class="progress" style="width: 0%;"></div>
                             </div>
-                            
-                            <!-- Upload Progress Section -->
-                            <div id="upload-progress" class="progress-section upload-progress" style="display: none;">
-                                <div class="progress-header">
-                                    <div class="progress-title">📤 Uploading to Replay Hub</div>
-                                    <div class="progress-status" id="upload-status">Preparing upload...</div>
-                                </div>
-                                
-                                <div class="progress-bar-container">
-                                    <div id="upload-progress-bar" class="progress-bar uploading" style="width: 0%;">
-                                        <div class="progress-text" id="upload-progress-text">0%</div>
-                                    </div>
-                                </div>
-                                
-                                <div class="progress-details">
-                                    <div class="progress-detail">
-                                        <span class="progress-detail-label">Uploaded:</span>
-                                        <span class="progress-detail-value" id="uploaded-size">0 MB</span>
-                                    </div>
-                                    <div class="progress-detail">
-                                        <span class="progress-detail-label">Remaining:</span>
-                                        <span class="progress-detail-value" id="remaining-size">-</span>
-                                    </div>
-                                    <div class="progress-detail">
-                                        <span class="progress-detail-label">Speed:</span>
-                                        <span class="progress-detail-value" id="upload-speed">-</span>
-                                    </div>
-                                    <div class="progress-detail">
-                                        <span class="progress-detail-label">ETA:</span>
-                                        <span class="progress-detail-value" id="upload-eta">--:--</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Overall Progress Summary -->
-                            <div class="progress-summary">
-                                <div class="progress-header">
-                                    <div class="progress-title">📊 Overall Progress</div>
-                                    <div class="progress-status" id="overall-status">Starting...</div>
-                                </div>
-                                
-                                <div class="progress-bar-container">
-                                    <div id="overall-progress-bar" class="progress-bar" style="width: 0%;">
-                                        <div class="progress-text" id="overall-progress-text">0%</div>
-                                    </div>
-                                </div>
-                            </div>
+                            <p id="upload-status" role="status">Preparing to upload...</p>
                         </div>
-                        
+
                         <div class="modal-footer">
                             <button type="submit" class="btn btn-primary">Upload</button>
                         </div>
                     </form>
                 </div>
-                
+
                 <div id="bulk-upload" class="upload-content">
                     <form id="bulk-upload-form">
                         <div id="bulk-dropzone" class="dropzone">
@@ -252,7 +141,7 @@
                                 <i class="fas fa-cloud-upload-alt"></i>
                             </div>
                             <p class="dropzone-text">Drag and drop multiple videos here or click to select</p>
-                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Max 10GB per file.</p>
+                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Large files use server encoding.</p>
                         </div>
                         
                         <div class="form-group">
@@ -275,13 +164,6 @@
     <!-- Load Authentication Module -->
     <script src="js/auth.js"></script>
     
-    <!-- Load Video Converter -->
-    <script src="js/videoConverter.js"></script>
-    
-    <!-- Load Upload Progress Tracker -->
-    <script src="js/uploadProgress.js"></script>
-    
-    <!-- Load our application script -->
     <script src="app.js" type="module"></script>
 </body>
 </html>

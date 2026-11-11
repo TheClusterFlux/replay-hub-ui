@@ -1,8 +1,8 @@
-import { uploadHlsVideo, fetchAppConfig } from './js/hlsUpload.js';
+import { uploadHlsVideo, fetchAppConfig, BrowserEncodingError } from './js/hlsUpload.js';
 
 // Constants
-const ISLOCAL = false;
-export const BASE_URL = ISLOCAL ? 'http://localhost:8080' : 'https://replay-hub.theclusterflux.com';
+import { BASE_URL } from './js/config.js';
+export { BASE_URL };
 
 // Make BASE_URL available globally for non-module scripts
 window.BASE_URL = BASE_URL;
@@ -221,7 +221,10 @@ function updateLoginStatus(isLoggedIn) {
                     const avatar = document.createElement('div');
                     avatar.className = 'avatar';
                     if (currentUser.avatar) {
-                        avatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.name}" />`;
+                        const image = new Image();
+                        image.src = currentUser.avatar;
+                        image.alt = currentUser.name;
+                        avatar.replaceChildren(image);
                     } else {
                         // Use Font Awesome user icon as default
                         avatar.innerHTML = '<i class="fas fa-user"></i>';
@@ -291,7 +294,10 @@ function updateLoginStatus(isLoggedIn) {
                 
                 if (avatar) {
                     if (currentUser.avatar) {
-                        avatar.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.name}" />`;
+                        const image = new Image();
+                        image.src = currentUser.avatar;
+                        image.alt = currentUser.name;
+                        avatar.replaceChildren(image);
                     } else {
                         // Use Font Awesome user icon as default
                         avatar.innerHTML = '<i class="fas fa-user"></i>';
@@ -400,9 +406,11 @@ function showProfileModal() {
         
         const avatarPreview = document.getElementById('profile-avatar-preview');
         if (user.profile_picture) {
-            avatarPreview.innerHTML = `<img src="${user.profile_picture}" alt="Profile Picture" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover;" />`;
+            avatarPreview.innerHTML = `<img  alt="Profile Picture" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover;" />`;
+            avatarPreview.firstElementChild.src = user.profile_picture;
         } else {
-            avatarPreview.innerHTML = `<div style="width: 100px; height: 100px; border-radius: 50%; background: #ddd; display: flex; align-items: center; justify-content: center; font-size: 2em;">${user.display_name.charAt(0).toUpperCase()}</div>`;
+            avatarPreview.innerHTML = `<div style="width: 100px; height: 100px; border-radius: 50%; background: #ddd; display: flex; align-items: center; justify-content: center; font-size: 2em;"></div>`;
+            avatarPreview.firstElementChild.textContent = user.display_name.charAt(0).toUpperCase();
         }
     }
     
@@ -677,7 +685,7 @@ async function fetchVideos() {
         return data;
     } catch (error) {
         console.error('Error fetching videos:', error);
-        return [];
+        throw error;
     }
 }
 
@@ -763,14 +771,51 @@ async function addReaction(videoId, reactionType) {
     }
 }
 
-async function uploadVideo(formData, progressCallback, progressTracker = null) {
+async function responseError(response, fallback) {
+    const body = await response.json().catch(() => ({}));
+    return new Error(body.error || responseMessage(response.status, fallback));
+}
+
+function responseMessage(status, fallback) {
+    if (status === 413) return 'The server upload limit was exceeded. Trim or compress the video.';
+    if ([429, 502, 503, 504, 507].includes(status)) return 'The server is busy or out of capacity. Retry later or use a smaller clip.';
+    return fallback;
+}
+
+async function uploadWithStrategy(file, meta, report) {
+    const config = await fetchAppConfig();
+    const deviceLimit = (navigator.deviceMemory || 4) * 16 * 1024 * 1024;
+    const browserLimit = Math.min(config.browser_encoding_max_bytes ?? 64 * 1024 * 1024, deviceLimit);
+    if (config.encoding_strategy === 'CLIENT' && file.size <= browserLimit) {
+        try {
+            return await uploadHlsVideo(file, meta, report);
+        } catch (error) {
+            // Storage and completion errors may follow successful PUTs. Only retry encoder failures here.
+            if (!(error instanceof BrowserEncodingError)) throw error;
+        }
+    }
+    report({phase: 'Checking server encoding capacity', percent: 0});
+    const token = localStorage.getItem('replay_hub_token') || sessionStorage.getItem('replay_hub_token');
+    const check = await fetch(`${BASE_URL}/upload/server-check`, {
+        method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${token}`},
+        body: JSON.stringify({size: file.size}),
+    });
+    if (!check.ok) throw await responseError(check, 'Could not check server capacity. Please retry.');
+    const data = new FormData();
+    data.append('file', file);
+    for (const field of ['title', 'description', 'uploader']) data.append(field, meta[field]);
+    data.append('players', JSON.stringify(meta.players || []));
+    return uploadVideo(data, percent => report({phase: 'Uploading for server encoding', percent}));
+}
+
+async function uploadVideo(formData, progressCallback) {
     return new Promise((resolve, reject) => {
         const file = formData.get('file');
         
         // If file is larger than 100MB, use chunked upload
         if (file && file.size > 100 * 1024 * 1024) {
             console.log('Large file detected, using chunked upload');
-            return uploadLargeFile(formData, progressCallback, progressTracker)
+            return uploadLargeFile(formData, progressCallback)
                 .then(resolve)
                 .catch(reject);
         }
@@ -793,32 +838,23 @@ async function uploadVideo(formData, progressCallback, progressTracker = null) {
                 const progress = (event.loaded / event.total) * 100;
                 progressCallback(progress);
                 
-                // Update progress tracker if available
-                if (progressTracker) {
-                    progressTracker.updateUploadProgress(event.loaded, event.total);
-                }
+
             }
         };
         
         xhr.onload = function() {
-            if (xhr.status === 201) {
+            if (xhr.status === 201 || xhr.status === 202) {
                 try {
                     const response = JSON.parse(xhr.responseText);
-                    
-                    // Complete progress tracker if available
-                    if (progressTracker) {
-                        progressTracker.complete();
-                    }
                     
                     resolve(response);
                 } catch (e) {
                     reject(new Error('Invalid response format'));
                 }
-            } else if (xhr.status === 413) {
-                // Handle Request Entity Too Large error
-                reject(new Error('File is too large for the server to process. Please try using a smaller file.'));
             } else {
-                reject(new Error(`Upload failed with status: ${xhr.status}`));
+                let message;
+                try { message = JSON.parse(xhr.responseText).error; } catch { /* Non-JSON error */ }
+                reject(new Error(message || responseMessage(xhr.status, `Upload failed with status: ${xhr.status}`)));
             }
         };
         
@@ -831,7 +867,7 @@ async function uploadVideo(formData, progressCallback, progressTracker = null) {
 }
 
 // Function to handle large file uploads via chunking
-async function uploadLargeFile(formData, progressCallback, progressTracker = null) {
+async function uploadLargeFile(formData, progressCallback) {
     const file = formData.get('file');
     const title = formData.get('title');
     const description = formData.get('description');
@@ -884,7 +920,7 @@ async function uploadLargeFile(formData, progressCallback, progressTracker = nul
         });
         
         if (!initResponse.ok) {
-            throw new Error(`Failed to initialize chunked upload: ${initResponse.status}`);
+            throw await responseError(initResponse, 'Could not start the upload. Please retry.');
         }
         
         // Process each chunk
@@ -920,8 +956,8 @@ async function uploadLargeFile(formData, progressCallback, progressTracker = nul
                     xhr.upload.onprogress = (event) => {
                         if (event.lengthComputable) {
                             // Calculate overall progress across all chunks
-                            const chunkProgress = (event.loaded / event.total) * (chunkSize / file.size);
-                            const overallProgress = ((chunkIndex / totalChunks) + chunkProgress) * 100;
+                            const sent = totalUploaded + chunk.size * event.loaded / event.total;
+                            const overallProgress = 100 * sent / file.size;
                             
                             if (progressCallback) {
                                 progressCallback(Math.min(overallProgress, 99)); // Cap at 99% until fully complete
@@ -937,7 +973,9 @@ async function uploadLargeFile(formData, progressCallback, progressTracker = nul
                             console.log(`Chunk ${chunkIndex + 1}/${totalChunks} uploaded successfully`);
                             resolveChunk();
                         } else {
-                            rejectChunk(new Error(`Chunk upload failed with status: ${xhr.status}`));
+                            let message;
+                            try { message = JSON.parse(xhr.responseText).error; } catch { /* Proxy response */ }
+                            rejectChunk(new Error(message || responseMessage(xhr.status, 'Could not upload this chunk.')));
                         }
                     };
                     
@@ -983,7 +1021,7 @@ async function uploadLargeFile(formData, progressCallback, progressTracker = nul
         });
         
         if (!finalizeResponse.ok) {
-            throw new Error(`Failed to finalize upload: ${finalizeResponse.status}`);
+            throw await responseError(finalizeResponse, 'Could not finish the upload. Please retry.');
         }
         
         const responseData = await finalizeResponse.json();
@@ -1045,7 +1083,8 @@ function createVideoCard(video) {
     // Create the duration badge
     const duration = document.createElement('span');
     duration.className = 'video-duration';
-    duration.textContent = formatDuration(video.duration || 0);
+    const labels = {pending: 'Queued', processing: 'Encoding', failed: 'Encoding failed'};
+    duration.textContent = labels[video.encoding_status] || formatDuration(video.duration || 0);
     
     thumbnailContainer.appendChild(duration);
     
@@ -1118,6 +1157,15 @@ function createVideoCard(video) {
 function initPage() {
     const path = window.location.pathname;
     
+    const search = document.getElementById('search-bar');
+    const searchForm = search?.form;
+    if (searchForm && document.getElementById('video-grid')) {
+        search.value = new URLSearchParams(location.search).get('q') || '';
+        const filter = () => filterVideos(search.value.trim().toLowerCase());
+        search.oninput = filter;
+        searchForm.onsubmit = (event) => { event.preventDefault(); filter(); };
+    }
+
     // Always initialize authentication buttons first
     initAuthButtons();
     
@@ -1140,40 +1188,15 @@ async function initHomePage() {
     videoGrid.innerHTML = '<div class="loading">Loading videos...</div>';
     
     // Fetch videos
-    allVideos = await fetchVideos();
-    
-    // Clear and render videos
-    videoGrid.innerHTML = '';
-    if (allVideos.length === 0) {
-        videoGrid.innerHTML = '<div class="no-videos">No videos available</div>';
+    try {
+        allVideos = await fetchVideos();
+    } catch {
+        allVideos = [];
+        videoGrid.textContent = 'Could not load videos. Refresh to try again.';
         return;
     }
-    
-    // Filter out videos without valid s3_url
-    const validVideos = allVideos.filter(
-      video => video && (video.s3_url || video.hls_manifest_url)
-    );
-    
-    if (validVideos.length === 0) {
-        videoGrid.innerHTML = '<div class="no-videos">No videos available</div>';
-        return;
-    }
-    
-    validVideos.forEach(video => {
-        const card = createVideoCard(video);
-        if (card) {
-            videoGrid.appendChild(card);
-        }
-    });
-    
-    // Add search functionality
-    const searchBar = document.getElementById('search-bar');
-    if (searchBar) {
-        searchBar.addEventListener('input', (event) => {
-            const searchTerm = event.target.value.toLowerCase();
-            filterVideos(searchTerm);
-        });
-    }
+    const query = document.getElementById('search-bar')?.value || '';
+    filterVideos(query.trim().toLowerCase());
 }
 
 // Filter videos based on search term
@@ -1197,7 +1220,7 @@ function filterVideos(searchTerm) {
         : validVideos;
     
     if (filteredVideos.length === 0) {
-        videoGrid.innerHTML = '<div class="no-videos">No videos found</div>';
+        videoGrid.textContent = searchTerm ? 'No videos found' : 'No videos available';
         return;
     }
     
@@ -1253,18 +1276,18 @@ function initUploadModal() {
     const uploadStatus = document.getElementById('upload-status');
     const uploadList = document.getElementById('upload-list');
     
-    // Define max file size (10GB in bytes) to match server limit
-    const MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024;
-    
     console.log('Initializing upload modal');
     console.log('Upload button exists:', !!uploadButton);
     console.log('Modal overlay exists:', !!modalOverlay);
     
+    let uploading = false;
+
     // Selected file for single upload
     let selectedFile = null;
     
     // Array of files for bulk upload
     let selectedBulkFiles = [];
+    const completedFiles = new Set();
       // Open modal when upload button is clicked
     if (uploadButton) {
         uploadButton.addEventListener('click', () => {
@@ -1296,7 +1319,7 @@ function initUploadModal() {
                 }
                 
                 // Pre-fill uploader with current username
-                const uploaderInput = document.getElementById('video-uploader');
+                const uploaderInput = document.getElementById('upload-uploader');
                 const bulkUploaderInput = document.getElementById('bulk-video-uploader');
                 
                 if (uploaderInput) {
@@ -1324,7 +1347,7 @@ function initUploadModal() {
     // Close modal when X is clicked
     if (closeModal) {
         closeModal.addEventListener('click', () => {
-            console.log('Close button clicked');
+            if (uploading) return;
             if (modalOverlay) modalOverlay.classList.remove('active');
             resetUploadForm();
         });
@@ -1333,7 +1356,7 @@ function initUploadModal() {
     // Close modal when clicking outside the modal
     if (modalOverlay) {
         modalOverlay.addEventListener('click', (event) => {
-            if (event.target === modalOverlay) {
+            if (!uploading && event.target === modalOverlay) {
                 modalOverlay.classList.remove('active');
                 resetUploadForm();
             }
@@ -1343,6 +1366,7 @@ function initUploadModal() {
     // Tab switching functionality
     if (singleUploadTab && bulkUploadTab) {
         singleUploadTab.addEventListener('click', () => {
+            if (uploading) return;
             singleUploadTab.classList.add('active');
             bulkUploadTab.classList.remove('active');
             if (singleUploadContent) singleUploadContent.classList.add('active');
@@ -1350,52 +1374,12 @@ function initUploadModal() {
         });
         
         bulkUploadTab.addEventListener('click', () => {
+            if (uploading) return;
             bulkUploadTab.classList.add('active');
             singleUploadTab.classList.remove('active');
             if (bulkUploadContent) bulkUploadContent.classList.add('active');
             if (singleUploadContent) singleUploadContent.classList.remove('active');
         });
-    }
-    
-    // Handle conversion settings visibility
-    const enableConversionCheckbox = document.getElementById('enable-h265-conversion');
-    const conversionSettings = document.getElementById('conversion-settings');
-    const conversionStatus = document.getElementById('conversion-status');
-    
-    if (enableConversionCheckbox && conversionSettings) {
-        // Show/hide conversion settings based on checkbox
-        const toggleConversionSettings = () => {
-            if (enableConversionCheckbox.checked) {
-                conversionSettings.style.display = 'block';
-                conversionStatus.textContent = 'Ready to convert';
-                conversionStatus.className = 'conversion-status success';
-            } else {
-                conversionSettings.style.display = 'none';
-                conversionStatus.textContent = 'Using original format';
-                conversionStatus.className = 'conversion-status';
-            }
-        };
-        
-        enableConversionCheckbox.addEventListener('change', toggleConversionSettings);
-        toggleConversionSettings(); // Initialize state
-    }
-    
-    // Handle conversion quality and resolution changes
-    const conversionQuality = document.getElementById('conversion-quality');
-    const maxResolution = document.getElementById('max-resolution');
-    
-    if (conversionQuality && maxResolution && conversionStatus) {
-        const updateConversionStatus = () => {
-            if (enableConversionCheckbox?.checked) {
-                const quality = conversionQuality.value;
-                const resolution = maxResolution.value;
-                conversionStatus.textContent = `Ready: ${quality} quality, ${resolution}`;
-                conversionStatus.className = 'conversion-status success';
-            }
-        };
-        
-        conversionQuality.addEventListener('change', updateConversionStatus);
-        maxResolution.addEventListener('change', updateConversionStatus);
     }
     
     // Handling file selection for single upload
@@ -1425,13 +1409,10 @@ function initUploadModal() {
         
         // Handle dropped files
         singleDropzone.addEventListener('drop', (event) => {
+            if (uploading) return;
             if (event.dataTransfer.files.length > 0) {
                 const file = event.dataTransfer.files[0];
-                // Validate file size before accepting
-                if (file.size > MAX_FILE_SIZE) {
-                    alert(`File is too large. Maximum allowed size is 10GB. Your file is ${formatFileSize(file.size)}.`);
-                    return;
-                }
+
                 selectedFile = file;
                 updateSingleDropzoneUI(selectedFile);
             }
@@ -1439,7 +1420,7 @@ function initUploadModal() {
         
         // File click selection for single upload
         singleDropzone.addEventListener('click', () => {
-            console.log('Dropzone clicked');
+            if (uploading) return;
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
             fileInput.accept = 'video/*';
@@ -1447,11 +1428,7 @@ function initUploadModal() {
             fileInput.addEventListener('change', (event) => {
                 if (event.target.files.length > 0) {
                     const file = event.target.files[0];
-                    // Validate file size before accepting
-                    if (file.size > MAX_FILE_SIZE) {
-                        alert(`File is too large. Maximum allowed size is 10GB. Your file is ${formatFileSize(file.size)}.`);
-                        return;
-                    }
+
                     selectedFile = file;
                     console.log('File selected:', selectedFile.name, 'Size:', formatFileSize(selectedFile.size));
                     updateSingleDropzoneUI(selectedFile);
@@ -1496,6 +1473,7 @@ function initUploadModal() {
         // File click selection for bulk upload
         bulkDropzone.addEventListener('click', () => {
             console.log('Bulk dropzone clicked');
+            if (uploading) return;
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
             fileInput.accept = 'video/*';
@@ -1510,22 +1488,9 @@ function initUploadModal() {
         
         // Process multiple selected files for bulk upload
         function handleBulkFileSelection(files) {
-            if (!files || files.length === 0) return;
+            if (uploading || !files || files.length === 0) return;
             
-            // Filter files by size and add to the bulk files array
-            const validFiles = Array.from(files).filter(file => {
-                if (file.size > MAX_FILE_SIZE) {
-                    console.warn(`File "${file.name}" exceeds maximum size limit of 10GB`);
-                    return false;
-                }
-                return true;
-            });
-            
-            // Warn user if some files were skipped due to size
-            if (validFiles.length < files.length) {
-                alert(`${files.length - validFiles.length} file(s) exceeded the 10GB size limit and were not added.`);
-            }
-            
+            const validFiles = Array.from(files);
             // Add valid files to our collection
             selectedBulkFiles = [...selectedBulkFiles, ...validFiles];
             
@@ -1549,19 +1514,21 @@ function initUploadModal() {
                     fileItem.innerHTML = `
                         <div class="file-info">
                             <i class="fas fa-file-video"></i>
-                            <p>${file.name}</p>
+                            <p class="file-name"></p>
                             <p class="file-size">${formatFileSize(file.size)}</p>
                         </div>
                         <button type="button" class="remove-file" data-index="${index}">
                             <i class="fas fa-times"></i>
                         </button>
                     `;
+                    fileItem.querySelector('.file-name').textContent = file.name;
                     uploadList.appendChild(fileItem);
                 });
                 
                 // Add event listeners to remove buttons
                 document.querySelectorAll('.remove-file').forEach(button => {
                     button.addEventListener('click', (e) => {
+                        if (uploading) return;
                         const index = parseInt(e.currentTarget.getAttribute('data-index'));
                         selectedBulkFiles.splice(index, 1);
                         updateBulkDropzoneUI();
@@ -1587,29 +1554,23 @@ function initUploadModal() {
                 return;
             }
             
-            const titleInput = document.getElementById('video-title');
-            const descriptionInput = document.getElementById('video-description');
-            const uploaderInput = document.getElementById('video-uploader');
-            const playersInput = document.getElementById('video-players');
+            const titleInput = document.getElementById('upload-title');
+            const descriptionInput = document.getElementById('upload-description');
+            const uploaderInput = document.getElementById('upload-uploader');
+            const playersInput = document.getElementById('upload-players');
             
             if (!selectedFile) {
                 alert('Please select a video file to upload');
                 return;
             }
             
-            // Double-check file size before uploading
-            if (selectedFile.size > MAX_FILE_SIZE) {
-                alert(`File is too large. Maximum allowed size is 10GB. Your file is ${formatFileSize(selectedFile.size)}.`);
-                return;
-            }
-            
-            if (!titleInput.value) {
+            if (!titleInput.value.trim()) {
                 alert('Please enter a title for the video');
                 titleInput.focus();
                 return;
             }
             
-            if (!descriptionInput.value) {
+            if (!descriptionInput.value.trim()) {
                 alert('Please enter a description for the video');
                 descriptionInput.focus();
                 return;
@@ -1620,8 +1581,10 @@ function initUploadModal() {
             if (progressContainer) progressContainer.style.display = 'block';
             if (uploadStatus) uploadStatus.textContent = 'Preparing to upload...';
             
-            const progressTracker = new UploadProgressTracker();
-            progressTracker.startUpload(selectedFile);
+            if (uploading) return;
+            uploading = true;
+            const submit = uploadForm.querySelector('[type=submit]');
+            submit.disabled = true;
 
             const meta = {
                 title: titleInput.value.trim(),
@@ -1633,42 +1596,21 @@ function initUploadModal() {
             };
 
             try {
-                const config = await fetchAppConfig();
-                let response;
-
-                if (config.encoding_strategy === 'CLIENT') {
-                    console.log('Using client-side HLS encoding + R2 upload');
-                    progressTracker.startConversion();
-                    response = await uploadHlsVideo(selectedFile, meta, ({ phase, percent }) => {
-                        if (uploadProgress) uploadProgress.style.width = `${percent}%`;
-                        if (uploadStatus) uploadStatus.textContent = `${phase}… ${Math.round(percent)}%`;
-                    });
-                } else {
-                    const formData = new FormData();
-                    formData.append('file', selectedFile);
-                    formData.append('title', meta.title);
-                    formData.append('description', meta.description);
-                    formData.append('uploader', meta.uploader);
-                    formData.append('s3', 'true');
-                    if (meta.players.length) {
-                        formData.append('players', JSON.stringify(meta.players));
-                    }
-                    progressTracker.startUploadPhase();
-                    console.log('Using server-side encoding upload');
-                    response = await uploadVideo(formData, (progress) => {
-                        if (uploadProgress) uploadProgress.style.width = `${progress}%`;
-                        if (uploadStatus) uploadStatus.textContent = `Uploading… ${Math.round(progress)}%`;
-                    }, progressTracker);
-                }
-                
+                const response = await uploadWithStrategy(selectedFile, meta, ({phase, percent}) => {
+                    if (uploadProgress) uploadProgress.style.width = `${percent}%`;
+                    if (uploadStatus) uploadStatus.textContent = `${phase}… ${Math.round(percent)}%`;
+                });
                 console.log('Upload successful:', response);
                 
-                if (uploadStatus) uploadStatus.textContent = 'Upload complete!';
+                if (uploadStatus) uploadStatus.textContent = response.encoding_status === 'pending'
+                    ? 'Upload received. Your video is processing.' : 'Upload complete!';
                 
                 // Reload videos after successful upload
                 setTimeout(() => {
                     if (modalOverlay) modalOverlay.classList.remove('active');
                     resetUploadForm();
+                    uploading = false;
+                    submit.disabled = false;
                     
                     // Refresh the video grid if we're on the homepage
                     if (window.location.pathname.endsWith('index.html') || 
@@ -1679,6 +1621,8 @@ function initUploadModal() {
                 }, 1500);
                 
             } catch (error) {
+                uploading = false;
+                submit.disabled = false;
                 console.error('Error uploading video:', error);
                 if (uploadStatus) uploadStatus.textContent = `Error: ${error.message}`;
             }
@@ -1705,6 +1649,10 @@ function initUploadModal() {
             }
               // No need to check for username, as it's pre-filled and disabled for logged-in users
             
+            if (uploading) return;
+            uploading = true;
+            const submit = bulkUploadForm.querySelector('[type=submit]');
+            submit.disabled = true;
             // Show progress message
             if (bulkDropzone) {
                 bulkDropzone.innerHTML = `<p class="dropzone-text">Uploading ${selectedBulkFiles.length} files. Please wait...</p>`;
@@ -1715,95 +1663,44 @@ function initUploadModal() {
             
             for (let i = 0; i < selectedBulkFiles.length; i++) {
                 const file = selectedBulkFiles[i];
+                if (completedFiles.has(file)) {
+                    successCount++;
+                    continue;
+                }
                 
                 // Update upload list to show current file progress
                 if (uploadList) {
                     const items = uploadList.querySelectorAll('.upload-item');
                     if (items[i]) {
+                        items[i].querySelector('.file-progress')?.remove();
+                        items[i].classList.remove('upload-failed');
                         items[i].classList.add('uploading');
-                        items[i].innerHTML += `
+                        items[i].insertAdjacentHTML('beforeend', `
                             <div class="file-progress">
                                 <div class="progress-bar">
                                     <div class="progress" style="width: 0%"></div>
                                 </div>
                                 <div class="progress-text">Preparing...</div>
                             </div>
-                        `;
+                        `);
                     }
                 }
                 
                 // Basic file metadata
-                const fileName = file.name.split('.')[0] || `Video ${i+1}`;
+                const fileName = file.name.replace(/\.[^.]+$/, '') || `Video ${i+1}`;
                 
-                // Check if H.265 conversion is enabled
-                const enableConversion = document.getElementById('enable-h265-conversion')?.checked;
-                const conversionQuality = document.getElementById('conversion-quality')?.value || 'medium';
-                const maxResolution = document.getElementById('max-resolution')?.value || '1080p';
-                
-                let fileToUpload = file;
-                
-                // Convert video to H.265 if enabled
-                if (enableConversion && window.VideoConverter) {
-                    try {
-                        // Update progress text
-                        if (uploadList) {
-                            const progressText = uploadList.querySelectorAll('.upload-item .progress-text')[i];
-                            if (progressText) progressText.textContent = 'Converting to H.265...';
-                        }
-                        
-                        const converter = new window.VideoConverter();
-                        const conversionOptions = {
-                            quality: conversionQuality,
-                            maxWidth: getResolutionWidth(maxResolution),
-                            maxHeight: getResolutionHeight(maxResolution)
-                        };
-                        
-                        console.log(`🔄 Converting file ${i+1}/${selectedBulkFiles.length} to H.265:`, conversionOptions);
-                        fileToUpload = await converter.convertToH265(file, conversionOptions);
-                        
-                        if (fileToUpload !== file) {
-                            console.log(`✅ File ${i+1} converted successfully`);
-                            const sizeReduction = ((file.size - fileToUpload.size) / file.size * 100).toFixed(1);
-                            console.log(`📊 Size reduction: ${sizeReduction}%`);
-                        } else {
-                            console.log(`ℹ️ File ${i+1}: No conversion needed or conversion failed`);
-                        }
-                        
-                        converter.destroy();
-                    } catch (error) {
-                        console.error(`❌ Video conversion failed for file ${i+1}:`, error);
-                        fileToUpload = file; // Fallback to original
-                    }
-                }
-                
-                // Create form data for this file
-                const formData = new FormData();
-                formData.append('file', fileToUpload);
-                formData.append('title', fileName);
-                formData.append('description', `Uploaded on ${new Date().toLocaleDateString()}`);
-                formData.append('uploader', uploaderInput.value.trim());
-                formData.append('s3', 'true');
-                
-                // Add conversion metadata
-                if (fileToUpload !== file) {
-                    formData.append('converted_to_h265', 'true');
-                    formData.append('original_size', file.size.toString());
-                    formData.append('converted_size', fileToUpload.size.toString());
-                }
-            
                 try {
-                    // Upload the file
-                    const response = await uploadVideo(formData, (progress) => {
-                        // Update progress in the list item
-                        if (uploadList) {
-                            const progressBar = uploadList.querySelectorAll('.upload-item .progress')[i];
-                            const progressText = uploadList.querySelectorAll('.upload-item .progress-text')[i];
-                            
-                            if (progressBar) progressBar.style.width = `${progress}%`;
-                            if (progressText) progressText.textContent = `${Math.round(progress)}%`;
+                    await uploadWithStrategy(file, {
+                        title: fileName, description: `Uploaded on ${new Date().toLocaleDateString()}`,
+                        uploader: uploaderInput.value.trim(), players: [],
+                    }, ({phase, percent}) => {
+                        const item = uploadList?.querySelectorAll('.upload-item')[i];
+                        if (item) {
+                            item.querySelector('.progress').style.width = `${percent}%`;
+                            item.querySelector('.progress-text').textContent = `${phase}… ${Math.round(percent)}%`;
                         }
-                    }, progressTracker);
-                    
+                    });
+
                     // Mark as complete in the list
                     if (uploadList) {
                         const items = uploadList.querySelectorAll('.upload-item');
@@ -1815,6 +1712,7 @@ function initUploadModal() {
                         }
                     }
                     
+                    completedFiles.add(file);
                     successCount++;
                     
                 } catch (error) {
@@ -1843,6 +1741,8 @@ function initUploadModal() {
             
             // Reload videos after successful upload
             setTimeout(() => {
+                uploading = false;
+                submit.disabled = false;
                 // Only close and reset if all uploads were successful
                 if (successCount === selectedBulkFiles.length) {
                     if (modalOverlay) modalOverlay.classList.remove('active');
@@ -1866,12 +1766,13 @@ function initUploadModal() {
         singleDropzone.innerHTML = `
             <div class="selected-file">
                 <i class="fas fa-file-video"></i>
-                <p>${file.name}</p>
+                <p class="file-name"></p>
                 <p class="file-size">${formatFileSize(file.size)}</p>
             </div>
         `;
+        singleDropzone.querySelector('.file-name').textContent = file.name;
     }
-    
+
     // Helper function to format file size
     function formatFileSize(bytes) {
         if (bytes < 1024) return bytes + ' B';
@@ -1883,12 +1784,13 @@ function initUploadModal() {
     function resetUploadForm() {
         selectedFile = null;
         selectedBulkFiles = [];
+        completedFiles.clear();
         
         if (uploadForm) uploadForm.reset();
         if (bulkUploadForm) bulkUploadForm.reset();
         
         // Re-fill username fields for logged-in users
-        const uploaderInput = document.getElementById('video-uploader');
+        const uploaderInput = document.getElementById('upload-uploader');
         const bulkUploaderInput = document.getElementById('bulk-video-uploader');
         
         if (currentUser.isLoggedIn) {
@@ -1917,7 +1819,7 @@ function initUploadModal() {
                     <i class="fas fa-cloud-upload-alt"></i>
                 </div>
                 <p class="dropzone-text">Drag and drop a video here or click to select</p>
-                <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Max 10GB.</p>
+                <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Large files use server encoding.</p>
             `;
         }
         
@@ -1927,7 +1829,7 @@ function initUploadModal() {
                     <i class="fas fa-cloud-upload-alt"></i>
                 </div>
                 <p class="dropzone-text">Drag and drop multiple videos here or click to select</p>
-                <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Max 10GB per file.</p>
+                <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Large files use server encoding.</p>
             `;
         }
         
@@ -1940,28 +1842,3 @@ function initUploadModal() {
         if (uploadProgress) uploadProgress.style.width = '0%';
     }
 }
-
-// Helper functions for video conversion
-function getResolutionWidth(resolution) {
-    const resolutions = {
-        '720p': 1280,
-        '1080p': 1920,
-        '1440p': 2560,
-        '4k': 3840
-    };
-    return resolutions[resolution] || 1920;
-}
-
-function getResolutionHeight(resolution) {
-    const resolutions = {
-        '720p': 720,
-        '1080p': 1080,
-        '1440p': 1440,
-        '4k': 2160
-    };
-    return resolutions[resolution] || 1080;
-}
-
-// Make helper functions available globally
-window.getResolutionWidth = getResolutionWidth;
-window.getResolutionHeight = getResolutionHeight;

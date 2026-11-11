@@ -4,7 +4,7 @@
 
 import { encodeVideoToHls, isClientEncodingSupported } from './hlsEncoder.js';
 
-const BASE_URL = window.BASE_URL || 'http://localhost:8080';
+import { BASE_URL } from './config.js';
 
 let cachedConfig = null;
 
@@ -96,9 +96,11 @@ async function completeUpload(videoId, meta) {
 /**
  * Full client-side HLS upload pipeline.
  */
+export class BrowserEncodingError extends Error {}
+
 export async function uploadHlsVideo(file, meta, progressCallback) {
   if (!isClientEncodingSupported()) {
-    throw new Error('WebAssembly is not supported in this browser.');
+    throw new BrowserEncodingError('WebAssembly is not supported in this browser.');
   }
 
   const config = await fetchAppConfig();
@@ -108,15 +110,21 @@ export async function uploadHlsVideo(file, meta, progressCallback) {
     );
   }
 
+  if (!globalThis.crypto?.randomUUID || typeof Worker === 'undefined') {
+    throw new BrowserEncodingError('This browser cannot run the video encoder');
+  }
   const videoId = crypto.randomUUID();
   const report = (phase, pct) => {
     if (progressCallback) progressCallback({ phase, percent: pct });
   };
 
   report('Encoding video (this may take a while)', 0);
-  const encoded = await encodeVideoToHls(file, (phase, pct) => {
-    report(phase, pct * 0.55);
-  });
+  let encoded;
+  try {
+    encoded = await encodeVideoToHls(file, (phase, pct) => report(phase, pct * 0.55));
+  } catch (error) {
+    throw new BrowserEncodingError(error.message || 'Browser encoding failed');
+  }
 
   report('Requesting upload URLs', 56);
   const presign = await presignUploads(videoId, encoded.files);

@@ -72,12 +72,13 @@
             </a>
         </div>
         
-        <div class="search-container">
-            <input type="text" id="search-bar" placeholder="Search videos...">
-            <button id="search-button">
+        <form class="search-container" action="index.html" role="search">
+            <input type="text" id="search-bar" name="q" aria-label="Search videos" placeholder="Search videos...">
+            <button id="search-button" aria-label="Search">
                 <i class="fas fa-search"></i>
             </button>
-        </div>        <div class="user-actions">
+        </form>
+        <div class="user-actions">
             <button id="login-button" class="login-btn">
                 Login
             </button>
@@ -250,27 +251,27 @@
                                 <i class="fas fa-cloud-upload-alt"></i>
                             </div>
                             <p class="dropzone-text">Drag and drop a video here or click to select</p>
-                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Max 10GB.</p>
+                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Large files use server encoding.</p>
                         </div>
                         
                         <div class="form-group">
-                            <label for="video-uploader">Username</label>
-                            <input type="text" id="video-uploader" class="form-control" placeholder="Your username (required)">
+                            <label for="upload-uploader">Username</label>
+                            <input type="text" id="upload-uploader" class="form-control" placeholder="Your username (required)">
                         </div>
                         
                         <div class="form-group">
-                            <label for="video-title">Title</label>
-                            <input type="text" id="video-title" class="form-control" placeholder="Video title (required)">
+                            <label for="upload-title">Title</label>
+                            <input type="text" id="upload-title" class="form-control" placeholder="Video title (required)">
                         </div>
                         
                         <div class="form-group">
-                            <label for="video-description">Description</label>
-                            <textarea id="video-description" class="form-control" placeholder="Video description (required)"></textarea>
+                            <label for="upload-description">Description</label>
+                            <textarea id="upload-description" class="form-control" placeholder="Video description (required)"></textarea>
                         </div>
                         
                         <div class="form-group">
-                            <label for="video-players">Players in clip</label>
-                            <input type="text" id="video-players" class="form-control" placeholder="Comma-separated list of players (optional)">
+                            <label for="upload-players">Players in clip</label>
+                            <input type="text" id="upload-players" class="form-control" placeholder="Comma-separated list of players (optional)">
                             <small class="form-text text-muted">Enter player names separated by commas (e.g. "Player1, Player2, Player3")</small>
                         </div>
                         
@@ -278,7 +279,7 @@
                             <div class="progress-bar">
                                 <div id="upload-progress" class="progress" style="width: 0%;"></div>
                             </div>
-                            <p id="upload-status">Preparing to upload...</p>
+                            <p id="upload-status" role="status">Preparing to upload...</p>
                         </div>
                         
                         <div class="modal-footer">
@@ -294,7 +295,7 @@
                                 <i class="fas fa-cloud-upload-alt"></i>
                             </div>
                             <p class="dropzone-text">Drag and drop multiple videos here or click to select</p>
-                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Max 10GB per file.</p>
+                            <p class="dropzone-subtext">MP4, WebM, MOV or AVI. Large files use server encoding.</p>
                         </div>
                         
                         <div class="form-group">

@@ -235,6 +235,7 @@ window.replayHub = window.replayHub || {};
     }
     
     try {
+      let attemptedMediaRecovery = false;
       const hlsConfig = {
         debug: false,
         enableWorker: true,
@@ -245,31 +246,34 @@ window.replayHub = window.replayHub || {};
         capLevelToPlayerSize: false,
       };
 
-      if (isReplayHubStreamUrl(videoUrl)) {
-        hlsConfig.loader = buildSlidingWindowLoader(() => videoElement.currentTime);
-      }
-
       currentHls = new Hls(hlsConfig);
       
-      currentHls.loadSource(videoUrl);
-      currentHls.attachMedia(videoElement);
+
       
       currentHls.on(Hls.Events.MANIFEST_PARSED, function() {
         console.log('HLS manifest parsed successfully');
-        initPlyrPlayer(videoElement);
+        initPlyrPlayer(videoElement, true);
+        currentHls.attachMedia(videoElement);
       });
+      currentHls.loadSource(videoUrl);
       
       currentHls.on(Hls.Events.ERROR, function(event, data) {
         console.error('HLS error:', data);
         if (data.fatal) {
           switch(data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.error('Fatal network error encountered, trying to recover');
-              currentHls.startLoad();
+              cleanupPlayer();
+              showError('Video stream unavailable. Refresh to try again.');
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               console.error('Fatal media error encountered, trying to recover');
-              currentHls.recoverMediaError();
+              if (attemptedMediaRecovery) {
+                cleanupPlayer();
+                showError('This video could not be decoded.');
+              } else {
+                attemptedMediaRecovery = true;
+                currentHls.recoverMediaError();
+              }
               break;
             default:
               console.error('Fatal error, cannot recover');
@@ -392,20 +396,6 @@ window.replayHub = window.replayHub || {};
     return typeof url === 'string' && url.includes('/stream/');
   }
 
-  function buildSlidingWindowLoader(getCurrentTime) {
-    const BaseLoader = Hls.DefaultConfig.loader;
-    return class SlidingWindowPlaylistLoader extends BaseLoader {
-      load(context, config, callbacks) {
-        const url = context.url || '';
-        if (isReplayHubStreamUrl(url) && url.includes('.m3u8') && !url.includes('master.m3u8')) {
-          const t = Math.max(0, Math.floor((getCurrentTime() || 0) - 30));
-          context.url = `${url.split('?')[0]}?t=${t}`;
-        }
-        return super.load(context, config, callbacks);
-      }
-    };
-  }
-
   function getHlsLevelHeight(level, index) {
     if (level.height) return level.height;
     const resolution = level.attrs?.RESOLUTION || '';
@@ -460,12 +450,17 @@ window.replayHub = window.replayHub || {};
     const onSwitched = (_, data) => {
       if (data.level !== match.index) return;
       hls.off(Hls.Events.LEVEL_SWITCHED, onSwitched);
+      clearTimeout(switchTimeout);
       hls.currentLevel = match.index;
       if (wasPlaying && videoElement.paused) {
         videoElement.play().catch(() => {});
       }
     };
     hls.on(Hls.Events.LEVEL_SWITCHED, onSwitched);
+    const switchTimeout = setTimeout(() => {
+      hls.off(Hls.Events.LEVEL_SWITCHED, onSwitched);
+      hls.currentLevel = match.index;
+    }, 5000);
 
     if (wasPlaying) {
       hls.startLoad(-1);
@@ -1456,7 +1451,7 @@ window.replayHub = window.replayHub || {};
    * Initialize Plyr player with custom configuration
    * @param {HTMLElement} videoElement - The video element
    */
-  function initPlyrPlayer(videoElement) {
+  function initPlyrPlayer(videoElement, beforeAttach = false) {
     if (!window.Plyr) {
       console.warn('Plyr not available, using native controls');
       return;
@@ -1464,7 +1459,10 @@ window.replayHub = window.replayHub || {};
     
     try {
       // Wait for video to be ready before initializing Plyr
+      let initialized = false;
       const initPlyr = () => {
+        if (initialized) return;
+        initialized = true;
         const hlsQuality = currentHls ? buildHlsQualityConfig(currentHls, videoElement) : null;
         const plyrConfig = {
           controls: [
@@ -1551,7 +1549,7 @@ window.replayHub = window.replayHub || {};
       };
       
       // Check if video element is ready
-      if (videoElement.readyState >= 1 || videoElement.src) {
+      if (beforeAttach || videoElement.readyState >= 1 || videoElement.src) {
         initPlyr();
       } else {
         // Wait for loadstart event
@@ -1656,7 +1654,9 @@ window.replayHub = window.replayHub || {};
   };
   
   // Clean up on page unload
-  window.addEventListener('beforeunload', cleanupPlayer);
+  window.addEventListener('pagehide', (event) => {
+    if (!event.persisted) cleanupHls();
+  });
   
   // VideoPlayer module ready
 })();
