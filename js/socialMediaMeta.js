@@ -221,7 +221,10 @@ window.replayHub = window.replayHub || {};
     const params = new URLSearchParams(location.search);
     const id = videoData?.short_id || videoData?.id || params.get('id');
     if (!id || params.has('s3_url')) return location.href;
-    const url = new URL('/share', window.BASE_URL || 'https://replay-hub.theclusterflux.com');
+    const shareOrigin = location.hostname === 'replayhub.theclusterflux.com'
+      ? location.origin
+      : window.BASE_URL || 'https://replay-hub.theclusterflux.com';
+    const url = new URL('/share', shareOrigin);
     url.searchParams.set('id', id);
     return url.href;
   }
