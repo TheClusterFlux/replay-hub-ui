@@ -1144,7 +1144,7 @@ function createVideoCard(video) {
             }
         }
         if (idToUse) {
-            window.location.href = `video.html?id=${encodeURIComponent(idToUse)}`;
+            window.location.href = `video.html?id=${encodeURIComponent(idToUse)}&play=1`;
         } else {
             alert('Sorry, this video is currently unavailable.');
         }

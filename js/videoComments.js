@@ -841,8 +841,8 @@ window.replayHub = window.replayHub || {};
    * @param {string} videoId - The video ID
    */
   async function handleShareVideo(videoId) {
+    const currentUrl = window.replayHub.socialMediaMeta?.generateShareableUrl({ id: videoId }) || location.href;
     try {
-      const currentUrl = window.location.href;
       const videoTitle = document.getElementById('video-title')?.textContent || 'Check out this video';
       const videoDescription = document.getElementById('video-description')?.textContent || 'Watch this video on Replay Hub';
       
@@ -861,7 +861,7 @@ window.replayHub = window.replayHub || {};
       
       // Use social media meta module for enhanced clipboard functionality
       if (window.replayHub && window.replayHub.socialMediaMeta) {
-        const success = await window.replayHub.socialMediaMeta.copyVideoLink();
+        const success = await window.replayHub.socialMediaMeta.copyVideoLink(currentUrl);
         if (success) {
           if (window.showMessage) {
             window.showMessage('🎬 Video link copied to clipboard!', 'success');
@@ -892,7 +892,7 @@ window.replayHub = window.replayHub || {};
         }
         // Try clipboard as fallback
         try {
-          await navigator.clipboard.writeText(window.location.href);
+          await navigator.clipboard.writeText(currentUrl);
         } catch (clipError) {
           console.error('Clipboard fallback failed:', clipError);
         }
@@ -928,7 +928,6 @@ window.replayHub = window.replayHub || {};
           <div class="share-preview">
             <h4></h4>
             ${description ? `<p class="share-description"></p>` : ''}
-            <p class="share-note">📱 This video will show a rich preview with thumbnail when shared on Discord, WhatsApp, and other platforms!</p>
           </div>
           
           <div class="share-url-container">
@@ -968,7 +967,8 @@ window.replayHub = window.replayHub || {};
           <div class="share-tips">
             <h5><i class="fas fa-lightbulb"></i> Sharing Tips:</h5>
             <ul>
-              <li>🎬 The video will auto-preview in Discord, WhatsApp, and most messaging apps</li>
+              <li>Discord can play compatible videos in chat when link previews are enabled.</li>
+              <li>For playback inside WhatsApp, choose Download Original and attach the video to your chat.</li>
               <li>📱 Recipients can watch without creating an account</li>
               <li>🔗 This link works on all devices and browsers</li>
             </ul>

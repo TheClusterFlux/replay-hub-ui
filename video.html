@@ -2,6 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script>
+        // Keep address-bar copies and the Share button on the public watch link.
+        const watchUrl = new URL(location.href);
+        if (watchUrl.searchParams.get('play') === '1') {
+            watchUrl.searchParams.delete('play');
+            history.replaceState(history.state, '', watchUrl);
+        }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Watch Video - Replay Hub</title>
     
@@ -314,18 +322,18 @@
                 </div>
             </div>
         </div>    </div>    <!-- Load Social Media Meta Module -->
-    <script src="js/socialMediaMeta.js" defer></script>
+    <script src="js/socialMediaMeta.js?v=20261120a" defer></script>
     
     <!-- Load Authentication Module -->
     <script src="js/auth.js"></script>
     
     <!-- Load app.js first for global variables -->
-    <script src="app.js?v=20261111a" type="module"></script>
+    <script src="app.js?v=20261120a" type="module"></script>
       <!-- Load the modular JavaScript files in the correct order -->
     <script src="js/utils.js?v=20261111a" defer></script>
     <script src="js/videoPlayer.js?v=20261111a" defer></script>
     <script src="js/videoMetadata.js?v=20261111a" defer></script>
-    <script src="js/videoComments.js?v=20261111a" defer></script>
+    <script src="js/videoComments.js?v=20261120a" defer></script>
       <!-- Load the main video.js file last -->
     <script src="video.js?v=20261111a" defer></script>
 </body>

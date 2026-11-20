@@ -25,15 +25,16 @@ window.replayHub = window.replayHub || {};
     }
 
     const currentUrl = window.location.href;
-    const baseUrl = window.location.origin;
     
     // Prepare meta tag values
     const title = videoData.title || 'Watch Video - Replay Hub';
     const description = generateVideoDescription(videoData);
-    const videoUrl = formatVideoUrlForSocialMedia(videoData.s3_url || '');
+    const directMp4 = /\.(mp4|m4v)(?:[?#]|$)/i.test(videoData.s3_url || '');
+    const videoUrl = videoData.inline_video_url ?? (directMp4 ? videoData.s3_url : '');
+    const videoType = videoData.inline_video_type || (videoUrl ? 'video/mp4' : '');
+    const size = /^(\d+)\s*[xX×]\s*(\d+)$/.exec(videoData.resolution || '');
     const thumbnailUrl = videoData.thumbnail_url || generateThumbnailUrl(videoData);
     const duration = videoData.duration || '';
-    const uploader = videoData.uploader || 'Unknown';
     
     console.log('🏷️ Updating social media meta tags:', {
       title,
@@ -46,7 +47,7 @@ window.replayHub = window.replayHub || {};
     updateMetaTag('description', description);
     
     // Update Open Graph meta tags for better WhatsApp/Discord support
-    updateMetaProperty('og:type', 'video.other');
+    updateMetaProperty('og:type', videoUrl ? 'video.other' : 'website');
     updateMetaProperty('og:site_name', 'Replay Hub');
     updateMetaProperty('og:title', title);
     updateMetaProperty('og:description', description);
@@ -60,9 +61,9 @@ window.replayHub = window.replayHub || {};
     updateMetaProperty('og:video', videoUrl);
     updateMetaProperty('og:video:url', videoUrl);
     updateMetaProperty('og:video:secure_url', videoUrl);
-    updateMetaProperty('og:video:type', 'video/mp4');
-    updateMetaProperty('og:video:width', '1280');
-    updateMetaProperty('og:video:height', '720');
+    updateMetaProperty('og:video:type', videoType);
+    updateMetaProperty('og:video:width', size?.[1] || '1280');
+    updateMetaProperty('og:video:height', size?.[2] || '720');
     
     if (duration) {
       updateMetaProperty('og:video:duration', duration.toString());
@@ -80,7 +81,7 @@ window.replayHub = window.replayHub || {};
     updateMetaName('twitter:player:width', '1280');
     updateMetaName('twitter:player:height', '720');
     updateMetaName('twitter:player:stream', videoUrl);
-    updateMetaName('twitter:player:stream:content_type', 'video/mp4');
+    updateMetaName('twitter:player:stream:content_type', videoType);
 
     // Discord-specific meta tags
     updateMetaName('theme-color', '#ff6b6b');
@@ -140,85 +141,10 @@ window.replayHub = window.replayHub || {};
    * @returns {string} Thumbnail URL
    */
   function generateThumbnailUrl(videoData) {
-    // Priority 1: Use thumbnail_url if available (direct URL)
-    if (videoData.thumbnail_url) {
-      console.log('🖼️ Using thumbnail_url from database:', videoData.thumbnail_url);
-      return videoData.thumbnail_url;
-    }
-
-    // Priority 2: Use thumbnail_id to generate URL from your API
-    if (videoData.thumbnail_id) {
-      const thumbnailUrl = `${window.BASE_URL}/thumbnail/${videoData.thumbnail_id}`;
-      console.log('🖼️ Using thumbnail_id from database:', thumbnailUrl);
-      return thumbnailUrl;
-    }
-
-    // Priority 3: Try to generate thumbnail from video URL (S3)
-    if (videoData.s3_url) {
-      // For S3 videos, we could potentially generate a thumbnail URL
-      // This would require backend support to generate thumbnails
-      const videoExtension = videoData.s3_url.split('.').pop().toLowerCase();
-      const baseUrl = videoData.s3_url.replace(`.${videoExtension}`, '');
-      const possibleThumbnail = `${baseUrl}_thumbnail.jpg`;
-      
-      console.log('🖼️ No thumbnail found, using placeholder for:', videoData.title || 'Video');
-      return generatePublicPlaceholderImage(videoData.title || 'Video');
-    }
-
-    // Priority 4: Fallback to a default Replay Hub image
-    console.log('🖼️ No video data, using default placeholder');
-    return generatePublicPlaceholderImage('Replay Hub');
-  }
-
-  /**
-   * Generate a public placeholder image URL that social media crawlers can access
-   * @param {string} text - Text to display on the placeholder
-   * @returns {string} Public image URL
-   */
-  function generatePublicPlaceholderImage(text) {
-    // Use a public image service that creates dynamic images
-    // This ensures social media crawlers can access the image
-    const encodedText = encodeURIComponent(text);
-    const encodedSubtext = encodeURIComponent('Watch on Replay Hub');
-    
-    // Option 1: Use a public image generation service
-    // You can replace this with your own image generation endpoint
-    const imageUrl = `https://via.placeholder.com/1200x630/ff6b6b/ffffff?text=${encodedText}`;
-    
-    // Option 2: Use a more sophisticated image service (if available)
-    // const imageUrl = `https://dummyimage.com/1200x630/ff6b6b/ffffff&text=${encodedText}`;
-    
-    // Option 3: Use a custom image generation service
-    // const imageUrl = `${window.location.origin}/api/generate-thumbnail?title=${encodedText}&subtitle=${encodedSubtext}`;
-    
-    console.log('🖼️ Generated public placeholder image:', imageUrl);
-    return imageUrl;
-  }
-
-  /**
-   * Generate a placeholder image using data URI (for local use only)
-   * @param {string} text - Text to display on the placeholder
-   * @returns {string} Data URI for placeholder image
-   */
-  function generatePlaceholderImage(text) {
-    // Create a simple SVG placeholder with the text
-    const svg = `
-      <svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#ff6b6b;stop-opacity:1" />
-            <stop offset="100%" style="stop-color:#4ecdc4;stop-opacity:1" />
-          </linearGradient>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#grad)"/>
-        <circle cx="600" cy="250" r="80" fill="rgba(255,255,255,0.2)"/>
-        <polygon points="580,230 580,270 620,250" fill="white"/>
-        <text x="600" y="380" font-family="Arial, sans-serif" font-size="48" font-weight="bold" text-anchor="middle" fill="white">${text}</text>
-        <text x="600" y="420" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="rgba(255,255,255,0.8)">Watch on Replay Hub</text>
-      </svg>
-    `;
-    
-    return `data:image/svg+xml;base64,${btoa(svg)}`;
+    const api = window.BASE_URL || 'https://replay-hub.theclusterflux.com';
+    if (videoData.thumbnail_url) return videoData.thumbnail_url;
+    if (videoData.thumbnail_id) return `${api}/thumbnail/${encodeURIComponent(videoData.thumbnail_id)}`;
+    return videoData.poster_url || `${api}/static/replay-poster.png`;
   }
 
   /**
@@ -292,13 +218,12 @@ window.replayHub = window.replayHub || {};
    * @returns {string} Shareable URL
    */
   function generateShareableUrl(videoData) {
-    const baseUrl = window.location.origin;
-    const currentPath = window.location.pathname;
-    
-    // Use the current URL parameters to maintain context
-    const urlParams = new URLSearchParams(window.location.search);
-    
-    return `${baseUrl}${currentPath}?${urlParams.toString()}`;
+    const params = new URLSearchParams(location.search);
+    const id = videoData?.short_id || videoData?.id || params.get('id');
+    if (!id || params.has('s3_url')) return location.href;
+    const url = new URL('/share', window.BASE_URL || 'https://replay-hub.theclusterflux.com');
+    url.searchParams.set('id', id);
+    return url.href;
   }
 
   /**
@@ -403,7 +328,7 @@ window.replayHub = window.replayHub || {};
     updateCanonicalUrl(currentUrl);
     
     // Set a default placeholder image immediately
-    const defaultThumbnail = generatePublicPlaceholderImage('Replay Hub');
+    const defaultThumbnail = generateThumbnailUrl({});
     updateMetaProperty('og:image', defaultThumbnail);
     updateMetaName('twitter:image', defaultThumbnail);
     
@@ -417,10 +342,9 @@ window.replayHub = window.replayHub || {};
    * Copy video link to clipboard for sharing
    * @returns {Promise<boolean>} Success status
    */
-  async function copyVideoLink() {
+  async function copyVideoLink(url = generateShareableUrl()) {
     try {
-      const currentUrl = window.location.href;
-      await navigator.clipboard.writeText(currentUrl);
+      await navigator.clipboard.writeText(url);
       
       // Show a brief success message
       console.log('📋 Video link copied to clipboard');
@@ -436,7 +360,7 @@ window.replayHub = window.replayHub || {};
       
       // Fallback to manual selection for older browsers
       const textArea = document.createElement('textarea');
-      textArea.value = window.location.href;
+      textArea.value = url;
       document.body.appendChild(textArea);
       textArea.select();
       document.execCommand('copy');
@@ -489,4 +413,4 @@ window.replayHub = window.replayHub || {};
 
   console.log('✅ Social Media Meta module loaded');
 
-})(); 
+})();
