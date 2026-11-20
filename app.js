@@ -1042,6 +1042,26 @@ async function uploadLargeFile(formData, progressCallback) {
     }
 }
 
+const pendingThumbnails = new WeakMap();
+const thumbnailObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+    for (const {target, isIntersecting} of entries) {
+        if (!isIntersecting || !target.isConnected) continue;
+        thumbnailObserver.unobserve(target);
+        const load = pendingThumbnails.get(target);
+        pendingThumbnails.delete(target);
+        if (load) load();
+    }
+}, {rootMargin: '180px 0px'}) : null;
+
+function loadThumbnailNearScreen(container, load) {
+    if (thumbnailObserver) {
+        pendingThumbnails.set(container, load);
+        thumbnailObserver.observe(container);
+    } else {
+        load();
+    }
+}
+
 // DOM utility functions
 function createVideoCard(video) {
     // Ensure video object is valid
@@ -1071,14 +1091,18 @@ function createVideoCard(video) {
     const ready = !video.encoding_status || video.encoding_status === 'ready';
     if (ready) {
         const images = window.replayHub.images;
-        const sources = images.replaySources(video, BASE_URL);
+        const sources = [...new Set([
+            ...(video.gallery_image_urls || []),
+            ...images.replaySources(video, BASE_URL)
+        ])];
         const unavailable = document.createElement('span');
         unavailable.className = 'thumbnail-unavailable';
         unavailable.textContent = 'Preview unavailable';
         if (sources.length) {
-            const pending = images.spinner();
-            thumbnailContainer.append(pending);
-            images.load(sources, true).then(image => {
+            loadThumbnailNearScreen(thumbnailContainer, async () => {
+                const pending = images.spinner();
+                thumbnailContainer.prepend(pending);
+                const image = await images.load(sources, true);
                 if (image) image.className = 'thumbnail';
                 pending.replaceWith(image || unavailable);
             });
