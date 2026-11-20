@@ -59,7 +59,7 @@
     <meta name="keywords" content="video, replay, gaming, clips, share">
     <link rel="canonical" href="">
 
-    <link rel="stylesheet" href="styles.css?v=20261111a">
+    <link rel="stylesheet" href="styles.css?v=20261120b">
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Fonts -->
@@ -106,8 +106,7 @@
                 class="custom-video-player"
                 controls
                 crossorigin
-                playsinline
-                poster="">
+                playsinline>
                 <p>
                     Your browser doesn't support HTML5 video. Please update your browser or try a different one.
                 </p>
@@ -136,7 +135,7 @@
                 <div class="video-stats">
                     <span id="video-views">0 views</span>
                     <span>&bull;</span>
-                    <span id="video-date">April 27, 2025</span>
+                    <span id="video-date"></span>
                     <span>&bull;</span>
                     <span id="video-uploader">Unknown</span>
                 </div>
@@ -328,11 +327,12 @@
     <script src="js/auth.js"></script>
     
     <!-- Load app.js first for global variables -->
-    <script src="app.js?v=20261120a" type="module"></script>
+    <script src="js/replayImages.js?v=20261120b" defer></script>
+    <script src="app.js?v=20261120b" type="module"></script>
       <!-- Load the modular JavaScript files in the correct order -->
     <script src="js/utils.js?v=20261111a" defer></script>
     <script src="js/videoPlayer.js?v=20261111a" defer></script>
-    <script src="js/videoMetadata.js?v=20261111a" defer></script>
+    <script src="js/videoMetadata.js?v=20261120b" defer></script>
     <script src="js/videoComments.js?v=20261120a" defer></script>
       <!-- Load the main video.js file last -->
     <script src="video.js?v=20261111a" defer></script>

@@ -173,6 +173,31 @@ function logout() {
     window.logout();
 }
 
+const avatarSources = new WeakMap();
+
+async function renderAvatar(container, src, name, large = false) {
+    if (src && avatarSources.get(container) === src) return;
+    avatarSources.set(container, src);
+    if (src) {
+        const pending = window.replayHub.images.spinner();
+        container.replaceChildren(pending);
+        const image = await window.replayHub.images.load([src]);
+        if (pending.parentNode !== container) return;
+        if (image) {
+            container.replaceChildren(image);
+            return;
+        }
+        avatarSources.delete(container);
+    }
+    if (large) {
+        container.textContent = (name || '?').charAt(0).toUpperCase();
+    } else {
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-user';
+        container.replaceChildren(icon);
+    }
+}
+
 function updateLoginStatus(isLoggedIn) {
     console.log('updateLoginStatus called with:', isLoggedIn);
     const loginButton = document.getElementById('login-button');
@@ -220,15 +245,7 @@ function updateLoginStatus(isLoggedIn) {
                     // Add profile avatar and name
                     const avatar = document.createElement('div');
                     avatar.className = 'avatar';
-                    if (currentUser.avatar) {
-                        const image = new Image();
-                        image.src = currentUser.avatar;
-                        image.alt = currentUser.name;
-                        avatar.replaceChildren(image);
-                    } else {
-                        // Use Font Awesome user icon as default
-                        avatar.innerHTML = '<i class="fas fa-user"></i>';
-                    }
+                    renderAvatar(avatar, currentUser.avatar, currentUser.name);
                     
                     const username = document.createElement('span');
                     username.className = 'username';
@@ -293,15 +310,7 @@ function updateLoginStatus(isLoggedIn) {
                 const username = profileButton.querySelector('.username');
                 
                 if (avatar) {
-                    if (currentUser.avatar) {
-                        const image = new Image();
-                        image.src = currentUser.avatar;
-                        image.alt = currentUser.name;
-                        avatar.replaceChildren(image);
-                    } else {
-                        // Use Font Awesome user icon as default
-                        avatar.innerHTML = '<i class="fas fa-user"></i>';
-                    }
+                    renderAvatar(avatar, currentUser.avatar, currentUser.name);
                 }
                 
                 if (username) {
@@ -405,13 +414,7 @@ function showProfileModal() {
         document.getElementById('profile-bio').value = user.bio || '';
         
         const avatarPreview = document.getElementById('profile-avatar-preview');
-        if (user.profile_picture) {
-            avatarPreview.innerHTML = `<img  alt="Profile Picture" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover;" />`;
-            avatarPreview.firstElementChild.src = user.profile_picture;
-        } else {
-            avatarPreview.innerHTML = `<div style="width: 100px; height: 100px; border-radius: 50%; background: #ddd; display: flex; align-items: center; justify-content: center; font-size: 2em;"></div>`;
-            avatarPreview.firstElementChild.textContent = user.display_name.charAt(0).toUpperCase();
-        }
+        renderAvatar(avatarPreview, user.profile_picture, user.display_name || user.username, true);
     }
     
     modal.style.display = 'block';
@@ -620,6 +623,7 @@ if (document.readyState === 'loading') {
 
 // Global state
 let allVideos = []; 
+const videoCards = new WeakMap();
 
 // Utility functions
 function formatDate(date) {
@@ -1046,12 +1050,16 @@ function createVideoCard(video) {
         return null;
     }
 
-    // Ensure video has essential properties
-    const validPlaybackUrl = video.s3_url || video.hls_manifest_url;
-    const validS3Url = validPlaybackUrl && typeof validPlaybackUrl === 'string';
-    
-    // Create the base card element
-    const card = document.createElement('div');
+    const filename = typeof video.s3_url === 'string' ? video.s3_url.split('/').pop().split('.')[0] : '';
+    const legacyId = filename.match(/([a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12})|([a-f0-9]{32})/i);
+    const id = video.short_id || video.id || legacyId?.[0];
+    const card = document.createElement(id ? 'a' : 'button');
+    if (id) {
+        card.href = `video.html?id=${encodeURIComponent(id)}&play=1`;
+    } else {
+        card.type = 'button';
+        card.addEventListener('click', () => alert('Sorry, this video is currently unavailable.'));
+    }
     card.className = 'video-card';
     card.dataset.videoId = video.id || '';
     card.dataset.s3Url = video.s3_url || video.hls_manifest_url || '';
@@ -1061,23 +1069,22 @@ function createVideoCard(video) {
     thumbnailContainer.className = 'thumbnail-container';
     
     const ready = !video.encoding_status || video.encoding_status === 'ready';
-    const thumbnailUrl = video.thumbnail_id
-        ? BASE_URL + '/thumbnail/' + encodeURIComponent(video.thumbnail_id)
-        : null;
-    const posterUrl = video.poster_url || (video.storage_prefix && video.id
-        ? BASE_URL + '/stream/' + encodeURIComponent(video.id) + '/poster.jpg'
-        : null);
-    if (ready && (thumbnailUrl || posterUrl)) {
-        const thumbnail = document.createElement('img');
-        thumbnail.className = 'thumbnail';
-        thumbnail.alt = (video.title || 'Video') + ' thumbnail';
-        // The gallery uses COEP. Request cross-origin images in CORS mode.
-        thumbnail.crossOrigin = 'anonymous';
-        if (thumbnailUrl && posterUrl && thumbnailUrl !== posterUrl) {
-            thumbnail.addEventListener('error', () => { thumbnail.src = posterUrl; }, { once: true });
+    if (ready) {
+        const images = window.replayHub.images;
+        const sources = images.replaySources(video, BASE_URL);
+        const unavailable = document.createElement('span');
+        unavailable.className = 'thumbnail-unavailable';
+        unavailable.textContent = 'Preview unavailable';
+        if (sources.length) {
+            const pending = images.spinner();
+            thumbnailContainer.append(pending);
+            images.load(sources, true).then(image => {
+                if (image) image.className = 'thumbnail';
+                pending.replaceWith(image || unavailable);
+            });
+        } else {
+            thumbnailContainer.append(unavailable);
         }
-        thumbnail.src = thumbnailUrl || posterUrl;
-        thumbnailContainer.appendChild(thumbnail);
     }
 
     // Create the duration badge
@@ -1123,32 +1130,6 @@ function createVideoCard(video) {
     // Add all components to the card
     card.appendChild(thumbnailContainer);
     card.appendChild(videoInfo);
-    
-    // Add click event to navigate to the video page
-    card.addEventListener('click', () => {
-        // Use only the short video ID in the URL (not the S3 URL or Mongo _id)
-        let idToUse = video.short_id || '';
-        if (!idToUse && video.id) idToUse = video.id;
-        if (!idToUse && video.s3_url) {
-            // fallback: extract from s3_url if possible (legacy)
-            try {
-                const s3UrlParts = video.s3_url.split('/');
-                const filename = s3UrlParts[s3UrlParts.length - 1];
-                const filenameWithoutExt = filename.split('.')[0];
-                const uuidMatch = filenameWithoutExt.match(/([a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12})|([a-f0-9]{32})/i);
-                if (uuidMatch) {
-                    idToUse = uuidMatch[0];
-                }
-            } catch (e) {
-                console.warn('Error extracting ID from S3 URL:', e);
-            }
-        }
-        if (idToUse) {
-            window.location.href = `video.html?id=${encodeURIComponent(idToUse)}&play=1`;
-        } else {
-            alert('Sorry, this video is currently unavailable.');
-        }
-    });
     
     return card;
 }
@@ -1225,10 +1206,8 @@ function filterVideos(searchTerm) {
     }
     
     filteredVideos.forEach(video => {
-        const card = createVideoCard(video);
-        if (card) {
-            videoGrid.appendChild(card);
-        }
+        if (!videoCards.has(video)) videoCards.set(video, createVideoCard(video));
+        videoGrid.appendChild(videoCards.get(video));
     });
 }
 

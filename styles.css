@@ -161,6 +161,7 @@ body {
 }
 
 .avatar {
+  position: relative;
   width: 32px;
   height: 32px;
   background: var(--accent-color);
@@ -292,6 +293,12 @@ body {
 }
 
 .video-card {
+  display: block;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  text-decoration: none;
   cursor: pointer;
   border-radius: 12px;
   overflow: hidden;
@@ -302,6 +309,11 @@ body {
 .video-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+}
+
+.video-card:focus-visible {
+  outline: 3px solid var(--accent-color);
+  outline-offset: 2px;
 }
 
 .thumbnail-container {
@@ -318,6 +330,52 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.image-spinner,
+.thumbnail-unavailable {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.image-spinner::before {
+  content: '';
+  width: var(--spinner-size, 24px);
+  height: var(--spinner-size, 24px);
+  box-sizing: border-box;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: image-spin 0.8s linear infinite;
+}
+
+.thumbnail-container .image-spinner,
+.thumbnail-unavailable {
+  color: var(--text-secondary-color);
+}
+
+.thumbnail-unavailable {
+  font-size: 0.875rem;
+}
+
+.video-player-wrapper > .image-spinner {
+  color: white;
+  inset: 12px 12px auto auto;
+}
+
+.avatar .image-spinner {
+  --spinner-size: 16px;
+}
+
+@keyframes image-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .image-spinner::before { animation: none; }
 }
 
 .video-duration {
@@ -1559,11 +1617,21 @@ body {
 
 /* Profile Avatar Preview */
 #profile-avatar-preview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: var(--hover-color);
+  font-size: 2em;
   margin-bottom: 1rem;
   text-align: center;
 }
 
 #profile-avatar-preview img {
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   object-fit: cover;
 }

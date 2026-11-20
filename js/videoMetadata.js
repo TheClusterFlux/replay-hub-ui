@@ -264,7 +264,7 @@ window.replayHub = window.replayHub || {};
     updateElement('video-uploader', `by ${uploaderName}`);
     
     // Update description
-    updateElement('video-description', videoData.description);
+    updateElement('video-description', videoData.description || '');
     
     // Update players section
     updatePlayersSection(videoData.players);
@@ -280,12 +280,7 @@ window.replayHub = window.replayHub || {};
       document.title = `${videoData.title} - Replay Hub`;
     }
     
-    // Set video poster if thumbnail is available
-    if (videoData.thumbnail_id) {
-      updateThumbnail(videoData.thumbnail_id);
-    } else if (videoData.poster_url) {
-      document.getElementById("video-player").poster = videoData.poster_url;
-    }
+    updatePoster(videoData);
     
     // Show edit controls if current user is the uploader
     showEditControlsIfOwner(videoData);
@@ -298,7 +293,7 @@ window.replayHub = window.replayHub || {};
    */
   function updateElement(elementId, content) {
     const element = document.getElementById(elementId);
-    if (element && content) {
+    if (element && content != null) {
       element.textContent = content;
     }
   }
@@ -322,22 +317,31 @@ window.replayHub = window.replayHub || {};
     }
   }
 
-  /**
-   * Update video thumbnail
-   * @param {string} thumbnailId - The thumbnail ID
-   */
-  function updateThumbnail(thumbnailId) {
-    const thumbnailUrl = `${BASE_URL}/thumbnail/${thumbnailId}`;
-    
+  async function updatePoster(video) {
     const player = document.getElementById('video-player');
-    if (player) {
-      player.poster = thumbnailUrl;
-      
-      // If we're using VideoJS
-      const vjsPlayer = window.videojs && window.videojs.getPlayer('video-player');
-      if (vjsPlayer) {
-        vjsPlayer.poster(thumbnailUrl);
+    const wrapper = player?.closest('.video-player-wrapper');
+    if (!wrapper) return;
+    wrapper.querySelector('.image-spinner')?.remove();
+    const images = window.replayHub.images;
+    const sources = images.replaySources(video, BASE_URL);
+    if (!sources.length || !player.paused || player.played.length || player.error) return;
+
+    const pending = images.spinner();
+    wrapper.append(pending);
+    const dismiss = () => pending.remove();
+    player.addEventListener('play', dismiss);
+    player.addEventListener('error', dismiss);
+    try {
+      const image = await images.load(sources, true);
+      if (image && pending.parentNode === wrapper) {
+        player.poster = image.src;
+        const plyr = window.replayHub.videoPlayer?.getCurrentPlayer();
+        if (plyr) plyr.poster = image.src;
       }
+    } finally {
+      dismiss();
+      player.removeEventListener('play', dismiss);
+      player.removeEventListener('error', dismiss);
     }
   }
 
